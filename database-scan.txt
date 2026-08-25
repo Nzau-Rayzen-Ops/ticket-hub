@@ -1,0 +1,1400 @@
+﻿FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 2
+CODE: const Database = require("better-sqlite3");
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 4
+CODE: const dbPath = path.join(__dirname, "tickets.db");
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 5
+CODE: const db = new Database(dbPath);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 7
+CODE: db.pragma("journal_mode = WAL");
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 10
+CODE:    TICKETS TABLE
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 13
+CODE: db.exec(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 14
+CODE: CREATE TABLE IF NOT EXISTS tickets (
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 43
+CODE:     .prepare("PRAGMA table_info(tickets)")
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 44
+CODE:     .all()
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 52
+CODE:     db.exec(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 53
+CODE:       ALTER TABLE tickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 57
+CODE:     console.log(`✅ Added '${name}' column to tickets table.`);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 125
+CODE: db.exec(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 127
+CODE: idx_tickets_qr_token_hash
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 128
+CODE: ON tickets(qr_token_hash)
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 132
+CODE: db.exec(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 134
+CODE: idx_tickets_verification_code
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 135
+CODE: ON tickets(verification_code_hash)
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 138
+CODE: db.exec(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 140
+CODE: idx_tickets_event_id
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 141
+CODE: ON tickets(event_id)
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 145
+CODE:    EVENTS TABLE
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 148
+CODE: db.exec(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 149
+CODE: CREATE TABLE IF NOT EXISTS events (
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 168
+CODE:   total_tickets INTEGER NOT NULL DEFAULT 0,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 169
+CODE:   available_tickets INTEGER NOT NULL DEFAULT 0,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 186
+CODE:   .prepare("PRAGMA table_info(events)")
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 187
+CODE:   .all()
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 192
+CODE:     db.exec(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 193
+CODE:       ALTER TABLE events
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 197
+CODE:     console.log(`✅ Added '${name}' column to events table.`);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 235
+CODE: db.exec(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 236
+CODE: CREATE TABLE IF NOT EXISTS mpesa_transactions (
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 259
+CODE: console.log("✅ Database initialized successfully.");
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\database.js
+LINE: 260
+CODE: console.log("📁 Database path:", dbPath);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\package-lock.json
+LINE: 14
+CODE:         "better-sqlite3": "^13.0.3",
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\package-lock.json
+LINE: 128
+CODE:     "node_modules/better-sqlite3": {
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\package-lock.json
+LINE: 130
+CODE:       "resolved": "https://registry.npmjs.org/better-sqlite3/-/better-sqlite3-13.0.3.tgz",
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\package-lock.json
+LINE: 291
+CODE:         "fsevents": "~2.3.2"
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\package-lock.json
+LINE: 742
+CODE:     "node_modules/fsevents": {
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\package-lock.json
+LINE: 744
+CODE:       "resolved": "https://registry.npmjs.org/fsevents/-/fsevents-2.3.3.tgz",
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\package.json
+LINE: 18
+CODE:     "better-sqlite3": "^13.0.3",
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\server.js
+LINE: 15
+CODE: const db = require("./database");
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\server.js
+LINE: 24
+CODE: require("./services/eventScheduler");
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\server.js
+LINE: 74
+CODE: app.get("/", (req, res) => {
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\server.js
+LINE: 80
+CODE: app.get("/api/health", (req, res) => {
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\server.js
+LINE: 91
+CODE: app.use("/api/tickets", ticketRoutes);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\server.js
+LINE: 92
+CODE: app.use("/api/events", eventRoutes);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\setupDatabase.js
+LINE: 1
+CODE: // server/setupDatabase.js
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\setupDatabase.js
+LINE: 2
+CODE: const db = require("./database");
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\setupDatabase.js
+LINE: 4
+CODE: console.log("Setting up database tables...");
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\setupDatabase.js
+LINE: 6
+CODE: // Create mpesa_transactions table
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\setupDatabase.js
+LINE: 7
+CODE: db.prepare(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\setupDatabase.js
+LINE: 8
+CODE:   CREATE TABLE IF NOT EXISTS mpesa_transactions (
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\setupDatabase.js
+LINE: 20
+CODE: `).run();
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\setupDatabase.js
+LINE: 22
+CODE: console.log("✅ mpesa_transactions table created successfully!");
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\setupDatabase.js
+LINE: 24
+CODE: // Also check if your tickets table has the idempotency_key column
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\setupDatabase.js
+LINE: 26
+CODE:   const test = db.prepare("SELECT idempotency_key FROM tickets LIMIT 1").get();
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\setupDatabase.js
+LINE: 27
+CODE:   console.log("✅ tickets table already has idempotency_key column");
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\setupDatabase.js
+LINE: 29
+CODE:   console.log("⚠️ Adding idempotency_key to tickets table...");
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\setupDatabase.js
+LINE: 30
+CODE:   db.prepare(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\setupDatabase.js
+LINE: 31
+CODE:     ALTER TABLE tickets ADD COLUMN idempotency_key TEXT
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\setupDatabase.js
+LINE: 32
+CODE:   `).run();
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\setupDatabase.js
+LINE: 33
+CODE:   console.log("✅ idempotency_key column added to tickets table!");
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\setupDatabase.js
+LINE: 36
+CODE: console.log("✅ Database setup complete!");
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets-backup.db
+LINE: 1
+CODE: SQLite format 3   @                                                                     .��
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets-backup.db
+LINE: 4
+CODE: �                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   ��tableeventseventsCREATE TABLE events (id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,description TEXT,date TEXT NOT NULL,time TEXT NOT NULL,venue TEXT NOT NULL,price INTEGER NOT NULL,capacity INTEGER NOT NULL,image TEXT,status TEXT NOT NULL DEFAULT 'ACTIVE',created_at DATETIME DEFAULT CURRENT_TIMESTAMP, total_tickets INTEGER NOT NULL DEFAULT 0, available_tickets INTEGER NOT NULL DEFAULT 0)P++Ytablesqlite_sequencesqlite_sequenceCREATE TABLE sqlite_sequence(name,seq)�P�wtableticketsticketsCREATE TABLE tickets (id INTEGER PRIMARY KEY AUTOINCREMENT,ticket_id TEXT UNIQUE NOT NULL,event_id TEXT NOT NULL,event_title TEXT NOT NULL,ticket_type TEXT NOT NULL,price INTEGER NOT NULL,quantity INTEGER NOT NULL,customer_name TEXT NOT NULL,customer_email TEXT NOT NULL,customer_phone TEXT NOT NULL,payment_status TEXT NOT NULL DEFAULT 'PENDING',ticket_status TEXT NOT NULL DEFAULT 'VALID',created_at DATETIME DEFAULT CURRENT_TIMESTAMP)-A indexsqlite_autoindex_tickets_1tickets       
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets-backup.db
+LINE: 17
+CODE: eventstickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets-before-qr-security.db
+LINE: 1
+CODE: SQLite format 3   @                                                                     .��
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets-before-qr-security.db
+LINE: 6
+CODE: �|                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 �2�;tableticketsticketsCREATE TABLE tickets (
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets-before-qr-security.db
+LINE: 21
+CODE: , idempotency_key TEXT)�W�	tableeventseventsCREATE TABLE events (
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets-before-qr-security.db
+LINE: 33
+CODE:   total_tickets INTEGER NOT NULL DEFAULT 0,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets-before-qr-security.db
+LINE: 34
+CODE:   available_tickets INTEGER NOT NULL DEFAULT 0,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets-before-qr-security.db
+LINE: 43
+CODE: )P++Ytablesqlite_sequencesqlite_sequenceCREATE TABLE sqlite_sequence(name,seq)� �tableticketstic�611�tablempesa_transactionsmpesa_transactionsCREATE TABLE mpesa_transactions (
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets-before-qr-security.db
+LINE: 54
+CODE: )CW1 indexsqlite_autoindex_mpesa_transactions_1mpesa_transactions�     -A indexsqlite_autoindex_tickets_1tickets       
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets-before-qr-security.db
+LINE: 63
+CODE: eventstickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets-before-qr-security.db
+LINE: 64
+CODE:    	events
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db
+LINE: 1
+CODE: SQLite format 3   @        
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db
+LINE: 8
+CODE: �|�E�                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       ^	5{indexidx_tickets_event_idtickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db
+LINE: 9
+CODE: CREATE INDEX idx_tickets_event_id
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db
+LINE: 10
+CODE: ON tickets(event_id)
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db
+LINE: 11
+CODE: G�)indexidx_tickets_verification_codetickets	CREATE INDEX idx_tickets_verification_code
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db
+LINE: 12
+CODE: ON tickets(verification_code_hash)
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db
+LINE: 13
+CODE: �?�]indexidx_tickets_qr_token_hashticketsCREATE UNIQUE INDEX idx_tickets_qr_token_hash
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db
+LINE: 14
+CODE: ON tickets(qr_token_hash)
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db
+LINE: 16
+CODE: ��tableticketsticketsCREATE TABLE tickets (
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db
+LINE: 31
+CODE: , idempotency_key TEXT, qr_token_hash TEXT, verification_code_hash TEXT, verification_code_expires_at DATETIME DEFAULT NULL, verification_code_sent_at DATETIME DEFAULT NULL, verification_attempts INTEGER NOT NULL DEFAULT 0, verified_at DATETIME DEFAULT NULL)�W�	tableeventseventsCREATE TABLE events (
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db
+LINE: 43
+CODE:   total_tickets INTEGER NOT NULL DEFAULT 0,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db
+LINE: 44
+CODE:   available_tickets INTEGER NOT NULL DEFAULT 0,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db
+LINE: 53
+CODE: )P++Ytablesqlite_sequencesqlite_sequenceCREATE TABLE sqlite_sequence(name,seq)� �tableticketstic�611�tablempesa_transactionsmpesa_transactionsCREATE TABLE mpesa_transactions (
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db
+LINE: 64
+CODE: )CW1 indexsqlite_autoindex_mpesa_transactions_1mpesa_transactions�     -A indexsqlite_autoindex_tickets_1tickets       
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db
+LINE: 77
+CODE: eventstickets   	events
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db-wal
+LINE: 13
+CODE: eventstickets   	events       9��A���,�HU�
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db-wal
+LINE: 39
+CODE: eventstickets   	events       9��A����-f�V�\�
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db-wal
+LINE: 157
+CODE: � � ���                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       1	mpesa_transactions
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db-wal
+LINE: 158
+CODE: eventstickets   	events       9��A�������ȟe
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db-wal
+LINE: 164
+CODE: � � ���                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      1mpesa_transactions
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db-wal
+LINE: 165
+CODE: eventstickets   	events       9��A���g-���f�U
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db-wal
+LINE: 172
+CODE: � � ���                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      1mpesa_transactions
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db-wal
+LINE: 173
+CODE: eventstickets   	events       9��A���6{T�� �y
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db-wal
+LINE: 179
+CODE: � � ���                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      1mpesa_transactions
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\tickets.db-wal
+LINE: 180
+CODE: eventstickets   	events       9��A���QoXQ�#
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 1
+CODE: const db = require("../database");
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 4
+CODE:    GET ALL EVENTS
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 7
+CODE: function getEvents(req, res) {
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 9
+CODE:     const events = db
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 10
+CODE:       .prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 13
+CODE:         FROM events
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 18
+CODE:       .all();
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 20
+CODE:     res.json(events);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 22
+CODE:     console.error("Get events error:", error);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 25
+CODE:       message: "Failed to load events."
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 38
+CODE:       .prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 41
+CODE:         FROM events
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 45
+CODE:       .get(req.params.id);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 77
+CODE:       total_tickets,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 100
+CODE:       total_tickets === undefined ||
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 101
+CODE:       total_tickets === ""
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 105
+CODE:           "Title, date, time, venue, price and total tickets are required."
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 114
+CODE:     const totalTickets = Number(total_tickets);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 118
+CODE:       !Number.isFinite(totalTickets)
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 122
+CODE:           "Price and total tickets must be valid numbers."
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 133
+CODE:     if (totalTickets <= 0) {
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 136
+CODE:           "Total tickets must be greater than zero."
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 250
+CODE:       .prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 252
+CODE:         INSERT INTO events (
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 260
+CODE:           total_tickets,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 261
+CODE:           available_tickets,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 276
+CODE:       .run(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 283
+CODE:         totalTickets,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 284
+CODE:         totalTickets,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 285
+CODE:         totalTickets,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 298
+CODE:       .prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 301
+CODE:         FROM events
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 305
+CODE:       .get(result.lastInsertRowid);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 341
+CODE:       .prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 344
+CODE:         FROM events
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 348
+CODE:       .get(eventId);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 363
+CODE:       total_tickets,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 364
+CODE:       available_tickets,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 424
+CODE:        TOTAL TICKETS
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 427
+CODE:     const updatedTotalTickets =
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 428
+CODE:       total_tickets === undefined ||
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 429
+CODE:       total_tickets === ""
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 430
+CODE:         ? Number(existingEvent.total_tickets)
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 431
+CODE:         : Number(total_tickets);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 435
+CODE:        AVAILABLE TICKETS
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 438
+CODE:     const updatedAvailableTickets =
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 439
+CODE:       available_tickets === undefined ||
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 440
+CODE:       available_tickets === ""
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 441
+CODE:         ? Number(existingEvent.available_tickets)
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 442
+CODE:         : Number(available_tickets);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 460
+CODE:       !Number.isFinite(updatedTotalTickets) ||
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 461
+CODE:       updatedTotalTickets <= 0
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 465
+CODE:           "Total tickets must be greater than zero."
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 470
+CODE:       !Number.isFinite(updatedAvailableTickets) ||
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 471
+CODE:       updatedAvailableTickets < 0
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 475
+CODE:           "Available tickets cannot be negative."
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 480
+CODE:       updatedAvailableTickets >
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 481
+CODE:       updatedTotalTickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 485
+CODE:           "Available tickets cannot be greater than total tickets."
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 671
+CODE:         keep the database clean.
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 713
+CODE:        UPDATE DATABASE
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 716
+CODE:     const update = db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 718
+CODE:       UPDATE events
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 727
+CODE:         total_tickets = ?,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 728
+CODE:         available_tickets = ?,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 740
+CODE:     const result = update.run(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 751
+CODE:         with total tickets.
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 753
+CODE:       updatedTotalTickets,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 755
+CODE:       updatedTotalTickets,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 756
+CODE:       updatedAvailableTickets,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 789
+CODE:       .prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 792
+CODE:         FROM events
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 796
+CODE:       .get(eventId);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 811
+CODE:       "UPDATE EVENT DATABASE ERROR"
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 836
+CODE:       the actual database error so
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 858
+CODE:       .prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 861
+CODE:         FROM events
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 865
+CODE:       .get(req.params.id);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 874
+CODE:       db.transaction(() => {
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 880
+CODE:         db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 882
+CODE:           UPDATE events
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 886
+CODE:         ).run(req.params.id);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 890
+CODE:            ARCHIVE TICKETS
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 893
+CODE:         db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 895
+CODE:           UPDATE tickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 900
+CODE:         ).run(String(req.params.id));
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 908
+CODE:         "Event and all associated tickets archived successfully."
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\eventController.js
+LINE: 931
+CODE:   getEvents,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 2
+CODE: const db = require("../database");
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 67
+CODE:     const existing = db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 68
+CODE:       "SELECT * FROM tickets WHERE idempotency_key = ?"
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 69
+CODE:     ).get(finalIdempotencyKey);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 87
+CODE:     const recentDuplicate = db.prepare(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 89
+CODE:       FROM tickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 95
+CODE:     `).get(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 104
+CODE:           "You already purchased tickets for this event recently. Please check your email for your ticket.",
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 114
+CODE:     const event = db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 115
+CODE:       "SELECT * FROM events WHERE id = ?"
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 116
+CODE:     ).get(eventId);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 144
+CODE:       event.available_tickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 148
+CODE:           "Not enough tickets available. Only " +
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 149
+CODE:           event.available_tickets +
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 180
+CODE:       db.transaction(() => {
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 182
+CODE:         const latestEvent = db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 183
+CODE:           "SELECT available_tickets FROM events WHERE id = ?"
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 184
+CODE:         ).get(eventId);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 192
+CODE:           latestEvent.available_tickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 195
+CODE:             "Not enough tickets available. Only " +
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 196
+CODE:             latestEvent.available_tickets +
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 201
+CODE:         db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 202
+CODE:           "INSERT INTO tickets " +
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 207
+CODE:         ).run(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 223
+CODE:         db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 224
+CODE:           "UPDATE events " +
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 225
+CODE:           "SET available_tickets = available_tickets - ? " +
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 227
+CODE:         ).run(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 239
+CODE:     const ticket = db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 240
+CODE:       "SELECT * FROM tickets WHERE ticket_id = ?"
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 241
+CODE:     ).get(ticketId);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 245
+CODE:       It is NOT stored in the database in plaintext.
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 308
+CODE:     const ticket = db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 309
+CODE:       "SELECT * FROM tickets WHERE ticket_id = ?"
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 310
+CODE:     ).get(req.params.ticketId);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 365
+CODE:     const ticket = db.prepare(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 376
+CODE:       FROM tickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 379
+CODE:     `).get(qrTokenHash);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 503
+CODE:     const ticket = db.prepare(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 505
+CODE:       FROM tickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 508
+CODE:     `).get(qrTokenHash);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 588
+CODE:       db.prepare(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 589
+CODE:         UPDATE tickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 593
+CODE:       `).run(ticket.id);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 606
+CODE:     const result = db.prepare(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 607
+CODE:       UPDATE tickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 613
+CODE:     `).run(ticket.id);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 663
+CODE:     const stats = db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 665
+CODE:       "COALESCE(SUM(quantity), 0) AS totalTickets, " +
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 667
+CODE:       "COALESCE(SUM(CASE WHEN ticket_status = 'VALID' THEN quantity ELSE 0 END), 0) AS validTickets, " +
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 668
+CODE:       "COALESCE(SUM(CASE WHEN ticket_status = 'USED' THEN quantity ELSE 0 END), 0) AS usedTickets " +
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 669
+CODE:       "FROM tickets " +
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 672
+CODE:     ).get();
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 691
+CODE:    RECENT TICKETS
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 694
+CODE: function getRecentTickets(req, res) {
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 697
+CODE:     const tickets = db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 698
+CODE:       "SELECT * FROM tickets " +
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 703
+CODE:     ).all();
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 705
+CODE:     res.json(tickets);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 710
+CODE:       "Recent tickets error:",
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 716
+CODE:         "Failed to load recent tickets."
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 722
+CODE:    ALL TICKETS
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 725
+CODE: function getAllTickets(req, res) {
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 728
+CODE:     const tickets = db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 729
+CODE:       "SELECT * FROM tickets " +
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 733
+CODE:     ).all();
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 735
+CODE:     res.json(tickets);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 740
+CODE:       "Get all tickets error:",
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 746
+CODE:         "Failed to load tickets."
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 761
+CODE:     const ticket = db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 762
+CODE:       "SELECT * FROM tickets WHERE ticket_id = ? AND deleted_at IS NULL"
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 763
+CODE:     ).get(ticketId);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 772
+CODE:     const result = db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 773
+CODE:       "UPDATE tickets SET deleted_at = CURRENT_TIMESTAMP WHERE ticket_id = ?"
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 774
+CODE:     ).run(ticketId);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 787
+CODE:         "Ticket moved to deleted tickets successfully.",
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 815
+CODE:     const ticket = db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 816
+CODE:       "SELECT * FROM tickets WHERE ticket_id = ? AND deleted_at IS NOT NULL"
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 817
+CODE:     ).get(ticketId);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 826
+CODE:     const result = db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 827
+CODE:       "DELETE FROM tickets WHERE ticket_id = ?"
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 828
+CODE:     ).run(ticketId);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 860
+CODE:    GET DELETED TICKETS
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 863
+CODE: function getDeletedTickets(req, res) {
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 866
+CODE:     const tickets = db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 867
+CODE:       "SELECT * FROM tickets " +
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 870
+CODE:     ).all();
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 872
+CODE:     res.json(tickets);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 877
+CODE:       "Get deleted tickets error:",
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 883
+CODE:         "Failed to load deleted tickets."
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 898
+CODE:     const ticket = db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 899
+CODE:       "SELECT * FROM tickets WHERE ticket_id = ? AND deleted_at IS NOT NULL"
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 900
+CODE:     ).get(ticketId);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 909
+CODE:     const result = db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 910
+CODE:       "UPDATE tickets SET deleted_at = NULL WHERE ticket_id = ?"
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 911
+CODE:     ).run(ticketId);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 967
+CODE:     const tickets = db.prepare(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 968
+CODE:       "SELECT * FROM tickets " +
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 974
+CODE:     ).all(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 979
+CODE:     res.json(tickets);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 1005
+CODE:   getRecentTickets,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 1006
+CODE:   getAllTickets,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\controllers\ticketController.js
+LINE: 1009
+CODE:   getDeletedTickets,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\AdminRoutes.js
+LINE: 39
+CODE: router.get(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\eventRoutes.js
+LINE: 4
+CODE:   getEvents,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\eventRoutes.js
+LINE: 19
+CODE:    PUBLIC EVENTS
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\eventRoutes.js
+LINE: 22
+CODE: router.get("/", getEvents);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\eventRoutes.js
+LINE: 24
+CODE: router.get("/:id", getEvent);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 12
+CODE: const db = require("../database");
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 87
+CODE:     db.prepare(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 88
+CODE:       INSERT INTO mpesa_transactions
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 98
+CODE:     `).run(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 142
+CODE: router.get(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 159
+CODE:         Check our database first.
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 162
+CODE:         db.prepare(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 164
+CODE:           FROM mpesa_transactions
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 166
+CODE:         `).get(checkoutRequestID);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 237
+CODE:         db.prepare(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 238
+CODE:           UPDATE mpesa_transactions
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 248
+CODE:         `).run(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 292
+CODE:       db.prepare(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 293
+CODE:         UPDATE mpesa_transactions
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 300
+CODE:       `).run(checkoutRequestID);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 409
+CODE:         db.prepare(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 410
+CODE:           UPDATE mpesa_transactions
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 420
+CODE:         `).run(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 439
+CODE:           or modify tickets here.
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 455
+CODE:         db.prepare(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 456
+CODE:           UPDATE mpesa_transactions
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\mpesaRoutes.js
+LINE: 465
+CODE:         `).run(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\paymentRoutes.js
+LINE: 12
+CODE: router.get("/", (req, res) => {
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\ticketRoutes.js
+LINE: 9
+CODE:   getRecentTickets,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\ticketRoutes.js
+LINE: 10
+CODE:   getAllTickets,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\ticketRoutes.js
+LINE: 13
+CODE:   getDeletedTickets,
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\ticketRoutes.js
+LINE: 51
+CODE: router.get(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\ticketRoutes.js
+LINE: 66
+CODE: router.get(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\ticketRoutes.js
+LINE: 73
+CODE: // Admin recent tickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\ticketRoutes.js
+LINE: 74
+CODE: router.get(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\ticketRoutes.js
+LINE: 77
+CODE:   getRecentTickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\ticketRoutes.js
+LINE: 81
+CODE: // Admin all tickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\ticketRoutes.js
+LINE: 82
+CODE: router.get(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\ticketRoutes.js
+LINE: 85
+CODE:   getAllTickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\ticketRoutes.js
+LINE: 89
+CODE: // Deleted tickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\ticketRoutes.js
+LINE: 90
+CODE: router.get(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\ticketRoutes.js
+LINE: 93
+CODE:   getDeletedTickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\routes\ticketRoutes.js
+LINE: 127
+CODE: router.get(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\services\mpesaService.js
+LINE: 96
+CODE:     const response = await axios.get(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\services\verificationService.js
+LINE: 3
+CODE: const db = require("../database");
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\services\verificationService.js
+LINE: 57
+CODE:   const tickets = db.prepare(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\services\verificationService.js
+LINE: 60
+CODE:     FROM tickets t
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\services\verificationService.js
+LINE: 62
+CODE:     INNER JOIN events e
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\services\verificationService.js
+LINE: 74
+CODE:   `).all(today);
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\services\verificationService.js
+LINE: 77
+CODE:     `🔐 ${tickets.length} ticket(s) require verification codes.`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\services\verificationService.js
+LINE: 80
+CODE:   for (const ticket of tickets) {
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\services\verificationService.js
+LINE: 98
+CODE:       const result = db.prepare(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\services\verificationService.js
+LINE: 99
+CODE:         UPDATE tickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\services\verificationService.js
+LINE: 111
+CODE:       `).run(
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\services\verificationService.js
+LINE: 142
+CODE:       db.prepare(`
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\services\verificationService.js
+LINE: 143
+CODE:         UPDATE tickets
+------------------------------------------------------------
+FILE: C:\Users\ndung\OneDrive\Documents\ticket\ticket-sales-system\server\services\verificationService.js
+LINE: 150
+CODE:       `).run(ticket.id);
+------------------------------------------------------------
