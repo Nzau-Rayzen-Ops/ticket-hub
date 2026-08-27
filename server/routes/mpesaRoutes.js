@@ -1,4 +1,4 @@
-// routes/mpesaRoutes.js
+// server/routes/mpesaRoutes.js
 
 const express = require("express");
 
@@ -9,145 +9,306 @@ const {
   querySTKPushStatus
 } = require("../services/mpesaService");
 
-const db = require("../database");
+const pool = require("../config/db");
 
-/* =========================
+/* =========================================================
    INITIATE STK PUSH
-========================= */
+========================================================= */
 
-router.post("/stkpush", async (req, res) => {
-  try {
-    const {
-      phoneNumber,
-      amount,
-      accountReference,
-      transactionDesc
-    } = req.body;
+router.post(
+  "/stkpush",
+  async (req, res) => {
 
-    if (
-      !phoneNumber ||
-      amount === undefined ||
-      !accountReference
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Phone number, amount, and account reference are required."
-      });
-    }
+    try {
 
-    const numericAmount =
-      Number(amount);
-
-    if (
-      !Number.isFinite(numericAmount) ||
-      numericAmount <= 0
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid payment amount."
-      });
-    }
-
-    const result =
-      await initiateSTKPush(
+      const {
         phoneNumber,
-        numericAmount,
+        amount,
         accountReference,
-        transactionDesc
-      );
+        transactionDesc,
+        eventId,
+        idempotencyKey
+      } = req.body;
 
-    if (
-      !result ||
-      !result.CheckoutRequestID
-    ) {
+      /* -----------------------------------------------------
+         VALIDATION
+      ----------------------------------------------------- */
+
+      if (
+        !phoneNumber ||
+        amount === undefined ||
+        !accountReference
+      ) {
+
+        return res.status(400).json({
+          success: false,
+          message:
+            "Phone number, amount, and account reference are required."
+        });
+      }
+
+      const numericAmount =
+        Number(amount);
+
+      if (
+        !Number.isFinite(
+          numericAmount
+        ) ||
+        numericAmount <= 0
+      ) {
+
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid payment amount."
+        });
+      }
+
+      /* -----------------------------------------------------
+         IDEMPOTENCY
+      ----------------------------------------------------- */
+
+      if (idempotencyKey) {
+
+        const existing =
+          await pool.query(
+            `
+            SELECT *
+            FROM mpesa_transactions
+            WHERE idempotency_key = $1
+            LIMIT 1
+            `,
+            [
+              String(
+                idempotencyKey
+              )
+            ]
+          );
+
+        if (
+          existing.rows.length > 0
+        ) {
+
+          const transaction =
+            existing.rows[0];
+
+          return res.json({
+
+            success: true,
+
+            alreadyExists: true,
+
+            status:
+              transaction.status,
+
+            checkoutRequestID:
+              transaction.checkout_request_id,
+
+            merchantRequestID:
+              transaction.merchant_request_id,
+
+            transaction
+          });
+        }
+      }
+
+      /* -----------------------------------------------------
+         INITIATE SAFARICOM STK
+      ----------------------------------------------------- */
+
+      const result =
+        await initiateSTKPush(
+          phoneNumber,
+          numericAmount,
+          accountReference,
+          transactionDesc
+        );
+
+      if (
+        !result ||
+        !result.CheckoutRequestID
+      ) {
+
+        console.error(
+          "❌ Invalid STK response:",
+          result
+        );
+
+        return res.status(502).json({
+          success: false,
+          message:
+            "Safaricom did not return a valid checkout request."
+        });
+      }
+
+      const checkoutRequestID =
+        result.CheckoutRequestID;
+
+      const merchantRequestID =
+        result.MerchantRequestID ||
+        "";
+
+      /* -----------------------------------------------------
+         SAVE TRANSACTION
+      ----------------------------------------------------- */
+
+      const insertResult =
+        await pool.query(
+          `
+          INSERT INTO mpesa_transactions
+          (
+            checkout_request_id,
+            merchant_request_id,
+            phone_number,
+            amount,
+            account_reference,
+            transaction_desc,
+            status,
+            result_code,
+            result_desc,
+            event_id,
+            idempotency_key
+          )
+          VALUES
+          (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9,
+            $10,
+            $11
+          )
+          RETURNING *
+          `,
+          [
+
+            checkoutRequestID,
+
+            merchantRequestID,
+
+            String(
+              phoneNumber
+            ),
+
+            numericAmount,
+
+            String(
+              accountReference
+            ),
+
+            transactionDesc
+              ? String(
+                  transactionDesc
+                )
+              : null,
+
+            "PENDING",
+
+            result.ResponseCode
+              ? String(
+                  result.ResponseCode
+                )
+              : null,
+
+            result.ResponseDescription
+              ? String(
+                  result.ResponseDescription
+                )
+              : null,
+
+            eventId
+              ? Number(eventId)
+              : null,
+
+            idempotencyKey
+              ? String(
+                  idempotencyKey
+                )
+              : null
+          ]
+        );
+
+      /* -----------------------------------------------------
+         RESPONSE
+      ----------------------------------------------------- */
+
+      return res.json({
+
+        success: true,
+
+        message:
+          result.ResponseDescription ||
+          "Payment prompt sent to your phone.",
+
+        checkoutRequestID,
+
+        merchantRequestID,
+
+        customerMessage:
+          result.CustomerMessage ||
+          "Please check your phone and enter your M-Pesa PIN.",
+
+        transaction:
+          insertResult.rows[0]
+      });
+
+    } catch (error) {
+
       console.error(
-        "Invalid STK response:",
-        result
+        "❌ STK Push route error:",
+        error
       );
 
-      return res.status(502).json({
+      /*
+        PostgreSQL unique constraint.
+
+        23505 = duplicate key.
+      */
+
+      if (
+        error.code === "23505"
+      ) {
+
+        return res.status(409).json({
+          success: false,
+          message:
+            "This payment request already exists."
+        });
+      }
+
+      return res.status(500).json({
         success: false,
         message:
-          "Safaricom did not return a valid checkout request."
+          error.message ||
+          "M-Pesa payment initiation failed."
       });
     }
-
-    const checkoutRequestID =
-      result.CheckoutRequestID;
-
-    const merchantRequestID =
-      result.MerchantRequestID || "";
-
-    /*
-      Store the transaction so we can
-      track its status.
-    */
-    db.prepare(`
-      INSERT INTO mpesa_transactions
-      (
-        checkout_request_id,
-        merchant_request_id,
-        phone_number,
-        amount,
-        account_reference,
-        status
-      )
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(
-      checkoutRequestID,
-      merchantRequestID,
-      String(phoneNumber),
-      numericAmount,
-      String(accountReference),
-      "PENDING"
-    );
-
-    return res.json({
-      success: true,
-
-      message:
-        result.ResponseDescription ||
-        "Payment prompt sent to your phone.",
-
-      checkoutRequestID,
-
-      merchantRequestID,
-
-      customerMessage:
-        result.CustomerMessage ||
-        "Please check your phone and enter your M-Pesa PIN."
-    });
-
-  } catch (error) {
-    console.error(
-      "STK Push route error:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        error.message ||
-        "M-Pesa payment initiation failed."
-    });
   }
-});
+);
 
-/* =========================
+/* =========================================================
    CHECK PAYMENT STATUS
-========================= */
+========================================================= */
 
 router.get(
   "/status/:checkoutRequestID",
   async (req, res) => {
+
     try {
+
       const {
         checkoutRequestID
       } = req.params;
 
-      if (!checkoutRequestID) {
+      if (
+        !checkoutRequestID
+      ) {
+
         return res.status(400).json({
           success: false,
           message:
@@ -155,17 +316,27 @@ router.get(
         });
       }
 
-      /*
-        Check our database first.
-      */
-      const existingTransaction =
-        db.prepare(`
+      /* -----------------------------------------------------
+         CHECK DATABASE FIRST
+      ----------------------------------------------------- */
+
+      const existingResult =
+        await pool.query(
+          `
           SELECT *
           FROM mpesa_transactions
-          WHERE checkout_request_id = ?
-        `).get(checkoutRequestID);
+          WHERE checkout_request_id = $1
+          LIMIT 1
+          `,
+          [
+            checkoutRequestID
+          ]
+        );
 
-      if (!existingTransaction) {
+      if (
+        existingResult.rows.length === 0
+      ) {
+
         return res.status(404).json({
           success: false,
           message:
@@ -173,45 +344,74 @@ router.get(
         });
       }
 
-      /*
-        If already successful or failed,
-        don't unnecessarily query Safaricom.
-      */
+      const transaction =
+        existingResult.rows[0];
+
+      /* -----------------------------------------------------
+         ALREADY SUCCESSFUL
+      ----------------------------------------------------- */
+
       if (
-        existingTransaction.status === "SUCCESS"
+        transaction.status ===
+        "SUCCESS"
       ) {
+
         return res.json({
+
           success: true,
-          status: "SUCCESS",
+
+          status:
+            "SUCCESS",
+
+          transaction,
+
           result: {
-            ResultCode: "0",
+
+            ResultCode:
+              "0",
+
             ResultDesc:
+              transaction.result_desc ||
               "Payment already confirmed."
           }
         });
       }
 
+      /* -----------------------------------------------------
+         ALREADY FAILED
+      ----------------------------------------------------- */
+
       if (
-        existingTransaction.status === "FAILED"
+        transaction.status ===
+        "FAILED"
       ) {
+
         return res.json({
+
           success: true,
-          status: "FAILED",
+
+          status:
+            "FAILED",
+
+          transaction,
+
           result: {
+
             ResultCode:
-              existingTransaction.result_code ||
+              transaction.result_code ||
               "FAILED",
 
             ResultDesc:
-              existingTransaction.result_desc ||
+              transaction.result_desc ||
               "Payment failed."
           }
         });
       }
 
-      /*
-        Query Safaricom.
-      */
+      /* -----------------------------------------------------
+         QUERY SAFARICOM
+      ----------------------------------------------------- */
+
       const result =
         await querySTKPushStatus(
           checkoutRequestID
@@ -229,86 +429,172 @@ router.get(
         result.ResponseDescription ||
         "";
 
-      /*
-        SUCCESS
-      */
-      if (resultCode === "0") {
+      /* -----------------------------------------------------
+         SUCCESS
+      ----------------------------------------------------- */
 
-        db.prepare(`
+      if (
+        resultCode === "0"
+      ) {
+
+        const receipt =
+          result.MpesaReceiptNumber ||
+          result.MpesaReceipt ||
+          null;
+
+        await pool.query(
+          `
           UPDATE mpesa_transactions
 
           SET
             status = 'SUCCESS',
+
             transaction_id =
-              COALESCE(transaction_id, ?),
+              COALESCE(
+                $1,
+                transaction_id
+              ),
+
+            result_code = $2,
+
+            result_desc = $3,
+
             updated_at =
               CURRENT_TIMESTAMP
 
-          WHERE checkout_request_id = ?
-        `).run(
-          result.MpesaReceiptNumber ||
-            null,
-          checkoutRequestID
+          WHERE checkout_request_id = $4
+          `,
+          [
+            receipt,
+
+            resultCode,
+
+            resultDesc ||
+              "Payment successful.",
+
+            checkoutRequestID
+          ]
         );
 
+        const updated =
+          await pool.query(
+            `
+            SELECT *
+            FROM mpesa_transactions
+            WHERE checkout_request_id = $1
+            LIMIT 1
+            `,
+            [
+              checkoutRequestID
+            ]
+          );
+
         return res.json({
+
           success: true,
-          status: "SUCCESS",
+
+          status:
+            "SUCCESS",
+
+          transaction:
+            updated.rows[0],
+
           result
         });
       }
 
-      /*
-        PENDING
-      */
+      /* -----------------------------------------------------
+         PENDING
+      ----------------------------------------------------- */
 
-      /*
-        Safaricom can return different
-        pending/processing codes depending
-        on the sandbox response.
-
-        We therefore treat these as
-        still pending rather than immediately
-        declaring failure.
-      */
       const pendingCodes = [
         "",
         "1037"
       ];
 
       if (
-        pendingCodes.includes(resultCode)
+        pendingCodes.includes(
+          resultCode
+        )
       ) {
+
+        await pool.query(
+          `
+          UPDATE mpesa_transactions
+
+          SET
+            result_code = $1,
+            result_desc = $2,
+            updated_at =
+              CURRENT_TIMESTAMP
+
+          WHERE checkout_request_id = $3
+          `,
+          [
+            resultCode || null,
+
+            resultDesc ||
+              "Payment is still pending.",
+
+            checkoutRequestID
+          ]
+        );
+
         return res.json({
+
           success: true,
-          status: "PENDING",
+
+          status:
+            "PENDING",
+
           result
         });
       }
 
-      /*
-        FAILED / CANCELLED
-      */
-      db.prepare(`
+      /* -----------------------------------------------------
+         FAILED / CANCELLED
+      ----------------------------------------------------- */
+
+      await pool.query(
+        `
         UPDATE mpesa_transactions
 
         SET
           status = 'FAILED',
-          updated_at = CURRENT_TIMESTAMP
 
-        WHERE checkout_request_id = ?
-      `).run(checkoutRequestID);
+          result_code = $1,
+
+          result_desc = $2,
+
+          updated_at =
+            CURRENT_TIMESTAMP
+
+        WHERE checkout_request_id = $3
+        `,
+        [
+          resultCode,
+
+          resultDesc ||
+            "Payment failed or was cancelled.",
+
+          checkoutRequestID
+        ]
+      );
 
       return res.json({
+
         success: true,
-        status: "FAILED",
+
+        status:
+          "FAILED",
+
         result
       });
 
     } catch (error) {
 
       console.error(
-        "STK status route error:",
+        "❌ STK status route error:",
         error
       );
 
@@ -322,20 +608,33 @@ router.get(
   }
 );
 
-/* =========================
+/* =========================================================
    SAFARICOM CALLBACK
-========================= */
+========================================================= */
 
 router.post(
   "/callback",
-  (req, res) => {
+  async (req, res) => {
+
+    /*
+      Safaricom needs a quick acknowledgement.
+
+      We acknowledge immediately before processing
+      the database update.
+    */
+
+    res.status(200).json({
+      ResultCode: 0,
+      ResultDesc: "Accepted"
+    });
 
     try {
 
-      const data = req.body;
+      const data =
+        req.body;
 
       console.log(
-        "M-Pesa callback received:"
+        "📥 M-Pesa callback received:"
       );
 
       console.log(
@@ -346,18 +645,15 @@ router.post(
         )
       );
 
-      /*
-        Always acknowledge Safaricom.
-      */
-      res.status(200).json({
-        ResultCode: 0,
-        ResultDesc: "Accepted"
-      });
-
       const callback =
         data?.Body?.stkCallback;
 
       if (!callback) {
+
+        console.warn(
+          "⚠️ Callback did not contain stkCallback."
+        );
+
         return;
       }
 
@@ -368,123 +664,235 @@ router.post(
         CallbackMetadata
       } = callback;
 
-      if (!CheckoutRequestID) {
+      if (
+        !CheckoutRequestID
+      ) {
+
+        console.warn(
+          "⚠️ Callback missing CheckoutRequestID."
+        );
+
         return;
       }
 
-      /*
-        Payment successful.
-      */
-      if (String(ResultCode) === "0") {
+      const callbackCode =
+        String(
+          ResultCode
+        );
+
+      /* -----------------------------------------------------
+         SUCCESS CALLBACK
+      ----------------------------------------------------- */
+
+      if (
+        callbackCode === "0"
+      ) {
 
         let amount = null;
+
         let phone = null;
+
         let transactionId = null;
 
         const items =
-          CallbackMetadata?.Item || [];
+          CallbackMetadata?.Item ||
+          [];
 
-        items.forEach((item) => {
+        items.forEach(
+          (item) => {
 
-          if (
-            item.Name === "Amount"
-          ) {
-            amount = item.Value;
+            if (
+              item.Name ===
+              "Amount"
+            ) {
+              amount =
+                item.Value;
+            }
+
+            if (
+              item.Name ===
+              "PhoneNumber"
+            ) {
+              phone =
+                item.Value;
+            }
+
+            if (
+              item.Name ===
+              "MpesaReceiptNumber"
+            ) {
+              transactionId =
+                item.Value;
+            }
           }
+        );
 
-          if (
-            item.Name === "PhoneNumber"
-          ) {
-            phone = item.Value;
-          }
-
-          if (
-            item.Name === "MpesaReceiptNumber"
-          ) {
-            transactionId =
-              item.Value;
-          }
-        });
-
-        db.prepare(`
+        await pool.query(
+          `
           UPDATE mpesa_transactions
 
           SET
             status = 'SUCCESS',
+
             transaction_id =
-              COALESCE(?, transaction_id),
+              COALESCE(
+                $1,
+                transaction_id
+              ),
+
+            result_code = $2,
+
+            result_desc = $3,
+
             updated_at =
               CURRENT_TIMESTAMP
 
-          WHERE checkout_request_id = ?
-        `).run(
-          transactionId,
-          CheckoutRequestID
+          WHERE checkout_request_id = $4
+          `,
+          [
+
+            transactionId,
+
+            callbackCode,
+
+            ResultDesc ||
+              "Payment successful.",
+
+            CheckoutRequestID
+          ]
         );
 
         console.log(
-          "M-Pesa payment confirmed:",
+          "✅ M-Pesa payment confirmed:",
           {
             CheckoutRequestID,
+
             transactionId,
+
             amount,
+
             phone
           }
         );
 
-      } else {
-
-        /*
-          We don't immediately create
-          or modify tickets here.
-
-          PaymentSuccess will only create
-          a ticket after the frontend has
-          confirmed SUCCESS through /status.
-        */
-
-        console.log(
-          "M-Pesa payment failed:",
-          {
-            CheckoutRequestID,
-            ResultCode,
-            ResultDesc
-          }
-        );
-
-        db.prepare(`
-          UPDATE mpesa_transactions
-
-          SET
-            status = 'FAILED',
-            updated_at =
-              CURRENT_TIMESTAMP
-
-          WHERE checkout_request_id = ?
-          AND status = 'PENDING'
-        `).run(
-          CheckoutRequestID
-        );
+        return;
       }
+
+      /* -----------------------------------------------------
+         FAILED CALLBACK
+      ----------------------------------------------------- */
+
+      await pool.query(
+        `
+        UPDATE mpesa_transactions
+
+        SET
+          status = 'FAILED',
+
+          result_code = $1,
+
+          result_desc = $2,
+
+          updated_at =
+            CURRENT_TIMESTAMP
+
+        WHERE checkout_request_id = $3
+
+        AND status = 'PENDING'
+        `,
+        [
+
+          callbackCode,
+
+          ResultDesc ||
+            "Payment failed or was cancelled.",
+
+          CheckoutRequestID
+        ]
+      );
+
+      console.log(
+        "❌ M-Pesa payment failed:",
+        {
+          CheckoutRequestID,
+
+          ResultCode,
+
+          ResultDesc
+        }
+      );
+
+    } catch (error) {
+
+      /*
+        We already acknowledged Safaricom,
+        so don't attempt another response.
+      */
+
+      console.error(
+        "❌ M-Pesa callback processing error:",
+        error
+      );
+    }
+  }
+);
+
+/* =========================================================
+   GET TRANSACTION
+========================================================= */
+
+router.get(
+  "/transaction/:checkoutRequestID",
+  async (req, res) => {
+
+    try {
+
+      const {
+        checkoutRequestID
+      } = req.params;
+
+      const result =
+        await pool.query(
+          `
+          SELECT *
+          FROM mpesa_transactions
+          WHERE checkout_request_id = $1
+          LIMIT 1
+          `,
+          [
+            checkoutRequestID
+          ]
+        );
+
+      if (
+        result.rows.length === 0
+      ) {
+
+        return res.status(404).json({
+          success: false,
+          message:
+            "Transaction not found."
+        });
+      }
+
+      return res.json({
+        success: true,
+        transaction:
+          result.rows[0]
+      });
 
     } catch (error) {
 
       console.error(
-        "M-Pesa callback error:",
+        "Get transaction error:",
         error
       );
 
-      /*
-        Safaricom should still receive
-        an acknowledgement.
-      */
-
-      if (!res.headersSent) {
-        res.status(200).json({
-          ResultCode: 0,
-          ResultDesc: "Accepted"
-        });
-      }
+      return res.status(500).json({
+        success: false,
+        message:
+          "Failed to retrieve transaction."
+      });
     }
   }
 );

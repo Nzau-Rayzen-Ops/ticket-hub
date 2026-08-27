@@ -5,14 +5,12 @@ const path = require("path");
 const dotenv = require("dotenv");
 
 /* =========================
-   LOAD SERVER ENVIRONMENT
+   LOAD ENVIRONMENT
 ========================= */
 
 dotenv.config({
   path: path.join(__dirname, ".env")
 });
-
-const db = require("./database");
 
 const ticketRoutes = require("./routes/ticketRoutes");
 const eventRoutes = require("./routes/eventRoutes");
@@ -20,13 +18,20 @@ const mpesaRoutes = require("./routes/mpesaRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const adminRoutes = require("./routes/AdminRoutes");
 
-// Start event verification scheduler
+/* =========================
+   START VERIFICATION SCHEDULER
+========================= */
+
 require("./services/eventScheduler");
+
+/* =========================
+   EXPRESS
+========================= */
 
 const app = express();
 
 /* =========================
-   SECURITY / MIDDLEWARE
+   CORS
 ========================= */
 
 const allowedOrigins = [
@@ -35,17 +40,28 @@ const allowedOrigins = [
 ];
 
 if (process.env.FRONTEND_URL) {
-  allowedOrigins.push(
-    process.env.FRONTEND_URL.replace(/\/$/, "")
-  );
+  const frontendUrl = process.env.FRONTEND_URL
+    .replace(/\/$/, "");
+
+  if (!allowedOrigins.includes(frontendUrl)) {
+    allowedOrigins.push(frontendUrl);
+  }
 }
+
+console.log(
+  "Allowed frontend origins:",
+  allowedOrigins
+);
 
 app.use(
   cors({
     origin: function (origin, callback) {
 
-      // Allow requests without an Origin header
-      // such as Postman/server-to-server requests.
+      /*
+        Allow requests with no Origin header.
+        Useful for Postman/server-to-server requests.
+      */
+
       if (!origin) {
         return callback(null, true);
       }
@@ -53,6 +69,11 @@ app.use(
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
+
+      console.warn(
+        "Blocked CORS origin:",
+        origin
+      );
 
       return callback(
         new Error("CORS origin not allowed.")
@@ -63,8 +84,21 @@ app.use(
   })
 );
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+/* =========================
+   BODY PARSERS
+========================= */
+
+app.use(express.json({
+  limit: "1mb"
+}));
+
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: "1mb"
+  })
+);
+
 app.use(cookieParser());
 
 /* =========================
@@ -73,75 +107,190 @@ app.use(cookieParser());
 
 app.get("/", (req, res) => {
   res.json({
-    message: "TicketHub API is running."
+    success: true,
+    message: "TicketHub API is running.",
+    environment:
+      process.env.NODE_ENV || "development"
   });
 });
 
-app.get("/api/health", (req, res) => {
-  res.json({
-    status: "OK",
-    message: "TicketHub API is healthy."
-  });
+app.get("/api/health", async (req, res) => {
+
+  try {
+
+    const pool =
+      require("./config/db");
+
+    await pool.query("SELECT 1");
+
+    res.json({
+      success: true,
+      status: "OK",
+      database: "PostgreSQL",
+      message: "TicketHub API is healthy."
+    });
+
+  } catch (error) {
+
+    console.error(
+      "Health check database error:",
+      error
+    );
+
+    res.status(503).json({
+      success: false,
+      status: "ERROR",
+      database: "Unavailable",
+      message: "Database connection failed."
+    });
+  }
 });
 
 /* =========================
    API ROUTES
 ========================= */
 
-app.use("/api/tickets", ticketRoutes);
-app.use("/api/events", eventRoutes);
-app.use("/api/mpesa", mpesaRoutes);
-app.use("/api/payments", paymentRoutes);
-app.use("/api/admin", adminRoutes);
+app.use(
+  "/api/tickets",
+  ticketRoutes
+);
+
+app.use(
+  "/api/events",
+  eventRoutes
+);
+
+app.use(
+  "/api/mpesa",
+  mpesaRoutes
+);
+
+app.use(
+  "/api/payments",
+  paymentRoutes
+);
+
+app.use(
+  "/api/admin",
+  adminRoutes
+);
+
+/* =========================
+   404 HANDLER
+========================= */
+
+app.use((req, res) => {
+
+  res.status(404).json({
+    success: false,
+    message:
+      "API route not found."
+  });
+});
 
 /* =========================
    ERROR HANDLER
 ========================= */
 
-app.use((err, req, res, next) => {
+app.use(
+  (err, req, res, next) => {
 
-  console.error("Server error:", err);
+    console.error(
+      "Server error:",
+      err
+    );
 
-  if (err.message === "CORS origin not allowed.") {
-    return res.status(403).json({
-      message: "CORS origin not allowed."
+    if (
+      err.message ===
+      "CORS origin not allowed."
+    ) {
+
+      return res.status(403).json({
+        success: false,
+        message:
+          "CORS origin not allowed."
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message:
+        process.env.NODE_ENV === "production"
+          ? "Internal server error."
+          : err.message ||
+            "Internal server error."
     });
   }
-
-  res.status(500).json({
-    message: "Internal server error."
-  });
-});
+);
 
 /* =========================
    START SERVER
 ========================= */
 
-const PORT = process.env.PORT || 5000;
+const PORT =
+  Number(process.env.PORT) || 5000;
 
 app.listen(PORT, () => {
 
   console.log(
-    `Server running on port ${PORT}`
+    "=========================================="
   );
 
   console.log(
-    "Admin authentication enabled."
+    "🚀 TicketHub API started"
   );
 
   console.log(
-    "Event verification scheduler enabled."
+    `🌐 Port: ${PORT}`
   );
 
   console.log(
-    `Email configured: ${
-      process.env.EMAIL_USER ? "YES" : "NO"
+    `🌍 Environment: ${
+      process.env.NODE_ENV || "development"
     }`
   );
 
   console.log(
-    `Email password configured: ${
-      process.env.EMAIL_PASSWORD ? "YES" : "NO"
+    `💳 M-Pesa environment: ${
+      process.env.MPESA_ENVIRONMENT || "sandbox"
     }`
+  );
+
+  console.log(
+    `🔗 Backend URL: ${
+      process.env.BACKEND_URL ||
+      "NOT SET"
+    }`
+  );
+
+  console.log(
+    `🌐 Frontend URL: ${
+      process.env.FRONTEND_URL ||
+      "NOT SET"
+    }`
+  );
+
+  console.log(
+    `📧 Email configured: ${
+      process.env.EMAIL_USER
+        ? "YES"
+        : "NO"
+    }`
+  );
+
+  console.log(
+    "🔐 Admin authentication enabled."
+  );
+
+  console.log(
+    "🎟️ Event verification scheduler enabled."
+  );
+
+  console.log(
+    "🗄️ Database: PostgreSQL"
+  );
+
+  console.log(
+    "=========================================="
   );
 });

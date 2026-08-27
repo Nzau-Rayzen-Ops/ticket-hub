@@ -4,8 +4,44 @@ const {
   generateEventVerificationCodes
 } = require("./verificationService");
 
+
 /* =========================
-   DAILY 10:00 AM JOB
+   RUN VERIFICATION JOB
+========================= */
+
+async function runVerificationJob(
+  source
+) {
+
+  try {
+
+    console.log(
+      `🎟️ Running verification code job: ${source}`
+    );
+
+    await generateEventVerificationCodes();
+
+    console.log(
+      "✅ Verification code job completed."
+    );
+
+  } catch (error) {
+
+    console.error(
+      "❌ Verification code job failed:",
+      error
+    );
+
+    /*
+      IMPORTANT:
+      Do NOT crash the entire server.
+    */
+  }
+}
+
+
+/* =========================
+   DAILY 10:00 AM
 ========================= */
 
 cron.schedule(
@@ -13,11 +49,9 @@ cron.schedule(
 
   async () => {
 
-    console.log(
-      "⏰ 10:00 AM Nairobi — generating event verification codes..."
+    await runVerificationJob(
+      "daily 10:00 AM Nairobi job"
     );
-
-    await generateEventVerificationCodes();
 
   },
 
@@ -27,51 +61,65 @@ cron.schedule(
   }
 );
 
+
 console.log(
   "⏰ Event verification scheduler started."
 );
 
+
 /* =========================
-   SERVER STARTUP CHECK
+   STARTUP CHECK
 ========================= */
-
-/*
-  Protects against:
-
-  - server restart
-  - deployment
-  - temporary downtime
-  - server starting after 10 AM
-*/
 
 setTimeout(
   async () => {
 
-    const now =
-      new Date();
+    try {
 
-    const hour =
-      Number(
+      const now =
+        new Date();
+
+
+      const hourString =
         new Intl.DateTimeFormat(
           "en-US",
           {
             timeZone:
               "Africa/Nairobi",
+
             hour:
               "2-digit",
+
             hour12:
               false
           }
-        ).format(now)
+        ).format(now);
+
+
+      const hour =
+        Number(hourString);
+
+
+      if (hour >= 10) {
+
+        await runVerificationJob(
+          "server startup after 10 AM"
+        );
+
+      } else {
+
+        console.log(
+          "ℹ️ Server started before 10 AM. Waiting for scheduled job."
+        );
+      }
+
+    } catch (error) {
+
+      console.error(
+        "❌ Startup verification check failed:",
+        error
       );
 
-    if (hour >= 10) {
-
-      console.log(
-        "🔄 Server started after 10 AM. Checking verification codes..."
-      );
-
-      await generateEventVerificationCodes();
     }
 
   },

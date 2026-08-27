@@ -36,3 +36,20 @@ server/*.db-*
 *.db
 *.db-*
 server/.en
+
+# Migration and development backups
+server/*-backup/
+server/*_backup/
+server/*-backup.*
+server/*_backup.*
+server/postgres-migration-backup-*/
+server/test-postgres.cjs
+server/ticket-system-audit.txt
+server/*.sqlite.backup
+
+# SQLite migration backup files
+server/*sqlite-backup*
+
+server/*sqlite-backup*
+
+server/**/*sqlite-backup*

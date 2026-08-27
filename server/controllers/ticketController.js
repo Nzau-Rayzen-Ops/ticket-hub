@@ -1,34 +1,44 @@
 ﻿const crypto = require("crypto");
-const db = require("../database");
-const { sendTicketEmail } = require("../services/emailService");
+
+const pool = require("../config/db");
+
+const {
+  sendTicketEmail
+} = require("../services/emailService");
+
 
 /* =========================
    SECURITY HELPERS
 ========================= */
 
 function generateRandomToken(bytes = 32) {
-  return crypto.randomBytes(bytes).toString("hex");
+
+  return crypto
+    .randomBytes(bytes)
+    .toString("hex");
 }
 
+
 function hashValue(value) {
+
   return crypto
     .createHash("sha256")
     .update(value)
     .digest("hex");
 }
 
-function generateVerificationCode() {
-  return crypto
-    .randomInt(100000, 1000000)
-    .toString();
-}
 
 /* =========================
    CREATE TICKET
 ========================= */
 
 async function createTicket(req, res) {
+
+  const client =
+    await pool.connect();
+
   try {
+
     const {
       eventId,
       eventTitle,
@@ -41,9 +51,13 @@ async function createTicket(req, res) {
       idempotencyKey
     } = req.body;
 
+
+    /* =========================
+       REQUIRED FIELDS
+    ========================= */
+
     if (
       !eventId ||
-      !eventTitle ||
       !ticketType ||
       price === undefined ||
       !quantity ||
@@ -51,82 +65,104 @@ async function createTicket(req, res) {
       !customerEmail ||
       !customerPhone
     ) {
+
       return res.status(400).json({
-        message: "All ticket information is required."
+        message:
+          "All ticket information is required."
       });
     }
 
+
     const finalIdempotencyKey =
       idempotencyKey ||
-      `${customerEmail}-${eventId}-${Date.now()}`;
+      `${String(customerEmail).trim().toLowerCase()}-${eventId}-${Date.now()}`;
+
 
     /* =========================
        IDEMPOTENCY CHECK
     ========================= */
 
-    const existing = db.prepare(
-      "SELECT * FROM tickets WHERE idempotency_key = ?"
-    ).get(finalIdempotencyKey);
+    const existingResult =
+      await client.query(
+        `
+        SELECT *
+        FROM tickets
+        WHERE idempotency_key = $1
+        LIMIT 1
+        `,
+        [finalIdempotencyKey]
+      );
 
-    if (existing) {
+
+    if (
+      existingResult.rows.length > 0
+    ) {
+
       return res.status(200).json({
-        message: "Ticket already created",
-        ticket: existing
+
+        message:
+          "Ticket already created.",
+
+        ticket:
+          existingResult.rows[0]
       });
     }
 
+
     /* =========================
-       RECENT DUPLICATE CHECK
+       CHECK RECENT DUPLICATE
     ========================= */
 
-    const fiveMinutesAgo =
-      new Date(
-        Date.now() - 5 * 60 * 1000
-      ).toISOString();
+    const duplicateResult =
+      await client.query(
+        `
+        SELECT *
+        FROM tickets
+        WHERE LOWER(customer_email) =
+              LOWER($1)
+        AND event_id = $2
+        AND created_at >=
+            CURRENT_TIMESTAMP - INTERVAL '5 minutes'
+        AND payment_status = 'PAID'
+        AND deleted_at IS NULL
+        ORDER BY created_at DESC
+        LIMIT 1
+        `,
+        [
+          String(customerEmail)
+            .trim(),
+          Number(eventId)
+        ]
+      );
 
-    const recentDuplicate = db.prepare(`
-      SELECT *
-      FROM tickets
-      WHERE customer_email = ?
-      AND event_id = ?
-      AND created_at >= ?
-      AND payment_status = 'PAID'
-      AND deleted_at IS NULL
-    `).get(
-      customerEmail,
-      String(eventId),
-      fiveMinutesAgo
-    );
 
-    if (recentDuplicate) {
+    if (
+      duplicateResult.rows.length > 0
+    ) {
+
       return res.status(409).json({
+
         message:
           "You already purchased tickets for this event recently. Please check your email for your ticket.",
+
         duplicate: true,
-        ticket: recentDuplicate
+
+        ticket:
+          duplicateResult.rows[0]
       });
     }
 
-    /* =========================
-       CHECK EVENT
-    ========================= */
-
-    const event = db.prepare(
-      "SELECT * FROM events WHERE id = ?"
-    ).get(eventId);
-
-    if (!event) {
-      return res.status(404).json({
-        message: "Event not found."
-      });
-    }
 
     /* =========================
        VALIDATE NUMBERS
     ========================= */
 
-    const ticketQuantity = Number(quantity);
-    const ticketPrice = Number(price);
+    const ticketQuantity =
+      Number(quantity);
+
+    const ticketPrice =
+      Number(price);
+
 
     if (
       !Number.isInteger(ticketQuantity) ||
@@ -134,22 +170,73 @@ async function createTicket(req, res) {
       !Number.isFinite(ticketPrice) ||
       ticketPrice < 0
     ) {
+
       return res.status(400).json({
-        message: "Invalid ticket quantity or price."
+        message:
+          "Invalid ticket quantity or price."
       });
     }
 
+
+    /* =========================
+       START TRANSACTION
+    ========================= */
+
+    await client.query("BEGIN");
+
+
+    /* =========================
+       LOCK EVENT
+    ========================= */
+
+    const eventResult =
+      await client.query(
+        `
+        SELECT *
+        FROM events
+        WHERE id = $1
+        AND status != 'ARCHIVED'
+        FOR UPDATE
+        `,
+        [Number(eventId)]
+      );
+
+
     if (
-      ticketQuantity >
-      event.available_tickets
+      eventResult.rows.length === 0
     ) {
-      return res.status(400).json({
+
+      await client.query("ROLLBACK");
+
+      return res.status(404).json({
         message:
-          "Not enough tickets available. Only " +
-          event.available_tickets +
-          " ticket(s) remaining."
+          "Event not found."
       });
     }
+
+
+    const event =
+      eventResult.rows[0];
+
+
+    /* =========================
+       CHECK AVAILABILITY
+    ========================= */
+
+    if (
+      ticketQuantity >
+      Number(event.available_tickets)
+    ) {
+
+      await client.query("ROLLBACK");
+
+      return res.status(400).json({
+
+        message:
+          `Not enough tickets available. Only ${event.available_tickets} ticket(s) remaining.`
+      });
+    }
+
 
     /* =========================
        SECURE TICKET ID
@@ -162,8 +249,9 @@ async function createTicket(req, res) {
         .toString("hex")
         .toUpperCase();
 
+
     /* =========================
-       SECURE QR TOKEN
+       QR TOKEN
     ========================= */
 
     const qrToken =
@@ -172,92 +260,118 @@ async function createTicket(req, res) {
     const qrTokenHash =
       hashValue(qrToken);
 
+
     /* =========================
        CREATE TICKET
+       
+       NOTE:
+       This preserves your current
+       application behavior where
+       createTicket creates a PAID
+       ticket.
+
+       Your payment flow can later
+       create/update this separately
+       if needed.
     ========================= */
 
-    const createTicketTransaction =
-      db.transaction(() => {
-
-        const latestEvent = db.prepare(
-          "SELECT available_tickets FROM events WHERE id = ?"
-        ).get(eventId);
-
-        if (!latestEvent) {
-          throw new Error("Event not found.");
-        }
-
-        if (
-          ticketQuantity >
-          latestEvent.available_tickets
-        ) {
-          throw new Error(
-            "Not enough tickets available. Only " +
-            latestEvent.available_tickets +
-            " ticket(s) remaining."
-          );
-        }
-
-        db.prepare(
-          "INSERT INTO tickets " +
-          "(ticket_id, event_id, event_title, ticket_type, price, quantity, " +
-          "customer_name, customer_email, customer_phone, payment_status, " +
-          "ticket_status, idempotency_key, qr_token_hash) " +
-          "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        ).run(
+    const insertResult =
+      await client.query(
+        `
+        INSERT INTO tickets
+        (
+          ticket_id,
+          event_id,
+          event_title,
+          ticket_type,
+          price,
+          quantity,
+          customer_name,
+          customer_email,
+          customer_phone,
+          payment_status,
+          ticket_status,
+          idempotency_key,
+          qr_token_hash
+        )
+        VALUES
+        (
+          $1, $2, $3, $4, $5,
+          $6, $7, $8, $9, $10,
+          $11, $12, $13
+        )
+        RETURNING *
+        `,
+        [
           ticketId,
-          String(eventId),
-          event.title,
+          Number(eventId),
+          event.title ||
+            eventTitle ||
+            "Event",
           ticketType,
           ticketPrice,
           ticketQuantity,
-          customerName,
-          customerEmail,
-          customerPhone,
+          String(customerName).trim(),
+          String(customerEmail)
+            .trim()
+            .toLowerCase(),
+          String(customerPhone).trim(),
           "PAID",
           "VALID",
           finalIdempotencyKey,
           qrTokenHash
-        );
+        ]
+      );
 
-        db.prepare(
-          "UPDATE events " +
-          "SET available_tickets = available_tickets - ? " +
-          "WHERE id = ?"
-        ).run(
-          ticketQuantity,
-          eventId
-        );
-      });
-
-    createTicketTransaction();
 
     /* =========================
-       GET CREATED TICKET
+       REDUCE INVENTORY
     ========================= */
 
-    const ticket = db.prepare(
-      "SELECT * FROM tickets WHERE ticket_id = ?"
-    ).get(ticketId);
+    await client.query(
+      `
+      UPDATE events
+      SET
+        available_tickets =
+          available_tickets - $1
+      WHERE id = $2
+      `,
+      [
+        ticketQuantity,
+        Number(eventId)
+      ]
+    );
 
-    /*
-      qrToken is returned only at creation time.
-      It is NOT stored in the database in plaintext.
-    */
+
+    /* =========================
+       COMMIT
+    ========================= */
+
+    await client.query("COMMIT");
+
+
+    const ticket =
+      insertResult.rows[0];
+
+
+    /* =========================
+       EMAIL
+    ========================= */
 
     const ticketForEmail = {
       ...ticket,
       qrToken
     };
 
-    /* =========================
-       SEND EMAIL
-    ========================= */
 
     try {
-      await sendTicketEmail(ticketForEmail);
+
+      await sendTicketEmail(
+        ticketForEmail
+      );
 
       return res.status(201).json({
+
         message:
           "Ticket created and email sent successfully.",
 
@@ -270,11 +384,12 @@ async function createTicket(req, res) {
     } catch (emailError) {
 
       console.error(
-        "Email error:",
+        "Ticket email error:",
         emailError
       );
 
       return res.status(201).json({
+
         message:
           "Ticket created, but email could not be sent.",
 
@@ -285,45 +400,94 @@ async function createTicket(req, res) {
       });
     }
 
+
   } catch (error) {
+
+    try {
+      await client.query("ROLLBACK");
+    } catch (_) {}
+
 
     console.error(
       "Create ticket error:",
       error
     );
 
+
+    if (
+      error.code === "23505"
+    ) {
+
+      return res.status(409).json({
+        message:
+          "This ticket request already exists."
+      });
+    }
+
+
     return res.status(500).json({
-      message: "Failed to create ticket."
+
+      message:
+        error.message ||
+        "Failed to create ticket."
     });
+
+  } finally {
+
+    client.release();
   }
 }
+
 
 /* =========================
    GET SINGLE TICKET
 ========================= */
 
-function getTicket(req, res) {
+async function getTicket(req, res) {
+
   try {
 
-    const ticket = db.prepare(
-      "SELECT * FROM tickets WHERE ticket_id = ?"
-    ).get(req.params.ticketId);
+    const result =
+      await pool.query(
+        `
+        SELECT
+          id,
+          ticket_id,
+          event_id,
+          event_title,
+          ticket_type,
+          price,
+          quantity,
+          customer_name,
+          customer_email,
+          customer_phone,
+          payment_status,
+          ticket_status,
+          deleted_at,
+          created_at
+        FROM tickets
+        WHERE ticket_id = $1
+        LIMIT 1
+        `,
+        [req.params.ticketId]
+      );
 
-    if (!ticket) {
+
+    if (
+      result.rows.length === 0
+    ) {
+
       return res.status(404).json({
-        message: "Ticket not found."
+        message:
+          "Ticket not found."
       });
     }
 
-    /*
-      Never return QR secret through
-      the normal ticket lookup endpoint.
-    */
 
-    delete ticket.qr_token_hash;
-    delete ticket.verification_code_hash;
+    return res.json(
+      result.rows[0]
+    );
 
-    res.json(ticket);
 
   } catch (error) {
 
@@ -332,95 +496,137 @@ function getTicket(req, res) {
       error
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       message:
         "Failed to retrieve ticket."
     });
   }
 }
 
+
 /* =========================
    VERIFY QR
 ========================= */
 
-function verifyTicket(req, res) {
+async function verifyTicket(req, res) {
+
   try {
 
-    const { qrToken } = req.body;
+    const {
+      qrToken
+    } = req.body;
+
 
     if (
       !qrToken ||
       typeof qrToken !== "string"
     ) {
+
       return res.status(400).json({
+
         valid: false,
         requiresCode: false,
-        message: "Invalid QR code."
+
+        message:
+          "Invalid QR code."
       });
     }
 
+
     const qrTokenHash =
-      hashValue(qrToken.trim());
+      hashValue(
+        qrToken.trim()
+      );
 
-    const ticket = db.prepare(`
-      SELECT
-        id,
-        event_id,
-        event_title,
-        ticket_type,
-        quantity,
-        customer_name,
-        payment_status,
-        ticket_status,
-        verification_attempts
-      FROM tickets
-      WHERE qr_token_hash = ?
-      AND deleted_at IS NULL
-    `).get(qrTokenHash);
 
-    if (!ticket) {
+    const result =
+      await pool.query(
+        `
+        SELECT
+          id,
+          event_id,
+          event_title,
+          ticket_type,
+          quantity,
+          customer_name,
+          payment_status,
+          ticket_status,
+          verification_attempts
+        FROM tickets
+        WHERE qr_token_hash = $1
+        AND deleted_at IS NULL
+        LIMIT 1
+        `,
+        [qrTokenHash]
+      );
+
+
+    if (
+      result.rows.length === 0
+    ) {
+
       return res.status(404).json({
+
         valid: false,
         requiresCode: false,
+
         message:
           "Invalid or unknown ticket QR code."
       });
     }
 
+
+    const ticket =
+      result.rows[0];
+
+
     if (
       ticket.payment_status !== "PAID"
     ) {
+
       return res.status(400).json({
+
         valid: false,
         requiresCode: false,
+
         message:
           "Payment has not been confirmed."
       });
     }
 
+
     if (
       ticket.ticket_status === "USED"
     ) {
+
       return res.status(400).json({
+
         valid: false,
         requiresCode: false,
+
         message:
           "This ticket has already been used."
       });
     }
 
+
     if (
       ticket.ticket_status !== "VALID"
     ) {
+
       return res.status(400).json({
+
         valid: false,
         requiresCode: false,
+
         message:
           "This ticket is not valid."
       });
     }
 
-    res.json({
+
+    return res.json({
+
       valid: false,
       requiresCode: true,
 
@@ -428,11 +634,18 @@ function verifyTicket(req, res) {
         "QR code recognized. Enter the 6-digit verification code sent to the ticket holder.",
 
       ticket: {
-        event_title: ticket.event_title,
-        ticket_type: ticket.ticket_type,
-        quantity: ticket.quantity
+
+        event_title:
+          ticket.event_title,
+
+        ticket_type:
+          ticket.ticket_type,
+
+        quantity:
+          ticket.quantity
       }
     });
+
 
   } catch (error) {
 
@@ -441,20 +654,30 @@ function verifyTicket(req, res) {
       error
     );
 
-    res.status(500).json({
+    return res.status(500).json({
+
       valid: false,
       requiresCode: false,
+
       message:
         "Ticket verification failed."
     });
   }
 }
 
+
 /* =========================
    VERIFY QR + CODE
 ========================= */
 
-function verifyTicketCode(req, res) {
+async function verifyTicketCode(
+  req,
+  res
+) {
+
+  const client =
+    await pool.connect();
+
   try {
 
     const {
@@ -462,216 +685,383 @@ function verifyTicketCode(req, res) {
       verificationCode
     } = req.body;
 
+
     if (
       !qrToken ||
       !verificationCode
     ) {
+
       return res.status(400).json({
+
         valid: false,
+
         message:
           "QR code and verification code are required."
       });
     }
 
+
     if (
       typeof qrToken !== "string" ||
       typeof verificationCode !== "string"
     ) {
+
       return res.status(400).json({
+
         valid: false,
+
         message:
           "Invalid verification request."
       });
     }
 
+
     const cleanCode =
       verificationCode.trim();
+
 
     if (
       !/^\d{6}$/.test(cleanCode)
     ) {
+
       return res.status(400).json({
+
         valid: false,
+
         message:
           "Verification code must be 6 digits."
       });
     }
 
+
     const qrTokenHash =
-      hashValue(qrToken.trim());
+      hashValue(
+        qrToken.trim()
+      );
 
-    const ticket = db.prepare(`
-      SELECT *
-      FROM tickets
-      WHERE qr_token_hash = ?
-      AND deleted_at IS NULL
-    `).get(qrTokenHash);
 
-    if (!ticket) {
+    await client.query("BEGIN");
+
+
+    const result =
+      await client.query(
+        `
+        SELECT *
+        FROM tickets
+        WHERE qr_token_hash = $1
+        AND deleted_at IS NULL
+        FOR UPDATE
+        `,
+        [qrTokenHash]
+      );
+
+
+    if (
+      result.rows.length === 0
+    ) {
+
+      await client.query("ROLLBACK");
+
       return res.status(404).json({
+
         valid: false,
+
         message:
           "Invalid ticket."
       });
     }
 
+
+    const ticket =
+      result.rows[0];
+
+
     if (
       ticket.payment_status !== "PAID"
     ) {
+
+      await client.query("ROLLBACK");
+
       return res.status(400).json({
+
         valid: false,
+
         message:
           "Payment has not been confirmed."
       });
     }
 
+
     if (
       ticket.ticket_status === "USED"
     ) {
+
+      await client.query("ROLLBACK");
+
       return res.status(400).json({
+
         valid: false,
+
         message:
           "This ticket has already been used."
       });
     }
 
+
     if (
       ticket.ticket_status !== "VALID"
     ) {
+
+      await client.query("ROLLBACK");
+
       return res.status(400).json({
+
         valid: false,
+
         message:
           "This ticket is not valid."
       });
     }
+
 
     /* =========================
        BRUTE FORCE PROTECTION
     ========================= */
 
     if (
-      (ticket.verification_attempts || 0) >= 5
+      Number(
+        ticket.verification_attempts || 0
+      ) >= 5
     ) {
+
+      await client.query("ROLLBACK");
+
       return res.status(429).json({
+
         valid: false,
+
         message:
           "Too many incorrect verification attempts. Contact the event administrator."
       });
     }
 
+
     if (
       !ticket.verification_code_hash
     ) {
+
+      await client.query("ROLLBACK");
+
       return res.status(400).json({
+
         valid: false,
+
         message:
           "The event verification code has not been generated yet."
       });
     }
 
+
     /* =========================
        CHECK CODE
-       
-       IMPORTANT:
-       There is intentionally NO
-       expiration check here.
     ========================= */
 
     const suppliedCodeHash =
       hashValue(cleanCode);
+
 
     if (
       suppliedCodeHash !==
       ticket.verification_code_hash
     ) {
 
-      db.prepare(`
+      await client.query(
+        `
         UPDATE tickets
-        SET verification_attempts =
-          verification_attempts + 1
-        WHERE id = ?
-      `).run(ticket.id);
+        SET
+          verification_attempts =
+            verification_attempts + 1,
+          updated_at =
+            CURRENT_TIMESTAMP
+        WHERE id = $1
+        `,
+        [ticket.id]
+      );
+
+
+      await client.query("COMMIT");
+
 
       return res.status(400).json({
+
         valid: false,
+
         message:
           "Incorrect verification code."
       });
     }
 
+
     /* =========================
        ATOMIC ENTRY APPROVAL
     ========================= */
 
-    const result = db.prepare(`
-      UPDATE tickets
-      SET
-        ticket_status = 'USED',
-        verified_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-      AND ticket_status = 'VALID'
-    `).run(ticket.id);
+    const updateResult =
+      await client.query(
+        `
+        UPDATE tickets
+        SET
+          ticket_status = 'USED',
+          verified_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+        AND ticket_status = 'VALID'
+        RETURNING *
+        `,
+        [ticket.id]
+      );
+
 
     if (
-      result.changes !== 1
+      updateResult.rows.length !== 1
     ) {
+
+      await client.query("ROLLBACK");
+
       return res.status(400).json({
+
         valid: false,
+
         message:
           "Ticket has already been used or could not be verified."
       });
     }
 
-    res.json({
+
+    await client.query("COMMIT");
+
+
+    const verifiedTicket =
+      updateResult.rows[0];
+
+
+    return res.json({
+
       valid: true,
 
       message:
         "Ticket verified successfully. Entry approved.",
 
       ticket: {
-        ticket_id: ticket.ticket_id,
-        event_title: ticket.event_title,
-        customer_name: ticket.customer_name,
-        ticket_type: ticket.ticket_type,
-        quantity: ticket.quantity,
-        ticket_status: "USED"
+
+        ticket_id:
+          verifiedTicket.ticket_id,
+
+        event_title:
+          verifiedTicket.event_title,
+
+        customer_name:
+          verifiedTicket.customer_name,
+
+        ticket_type:
+          verifiedTicket.ticket_type,
+
+        quantity:
+          verifiedTicket.quantity,
+
+        ticket_status:
+          "USED"
       }
     });
 
+
   } catch (error) {
+
+    try {
+      await client.query("ROLLBACK");
+    } catch (_) {}
+
 
     console.error(
       "Verification code error:",
       error
     );
 
-    res.status(500).json({
+
+    return res.status(500).json({
+
       valid: false,
+
       message:
         "Ticket verification failed."
     });
+
+  } finally {
+
+    client.release();
   }
 }
+
 
 /* =========================
    ADMIN DASHBOARD
 ========================= */
 
-function getDashboardStats(req, res) {
+async function getDashboardStats(
+  req,
+  res
+) {
+
   try {
 
-    const stats = db.prepare(
-      "SELECT " +
-      "COALESCE(SUM(quantity), 0) AS totalTickets, " +
-      "COALESCE(SUM(price * quantity), 0) AS totalRevenue, " +
-      "COALESCE(SUM(CASE WHEN ticket_status = 'VALID' THEN quantity ELSE 0 END), 0) AS validTickets, " +
-      "COALESCE(SUM(CASE WHEN ticket_status = 'USED' THEN quantity ELSE 0 END), 0) AS usedTickets " +
-      "FROM tickets " +
-      "WHERE payment_status = 'PAID' " +
-      "AND deleted_at IS NULL"
-    ).get();
+    const result =
+      await pool.query(
+        `
+        SELECT
+          COALESCE(
+            SUM(quantity),
+            0
+          )::INTEGER AS "totalTickets",
 
-    res.json(stats);
+          COALESCE(
+            SUM(price * quantity),
+            0
+          )::NUMERIC AS "totalRevenue",
+
+          COALESCE(
+            SUM(
+              CASE
+                WHEN ticket_status = 'VALID'
+                THEN quantity
+                ELSE 0
+              END
+            ),
+            0
+          )::INTEGER AS "validTickets",
+
+          COALESCE(
+            SUM(
+              CASE
+                WHEN ticket_status = 'USED'
+                THEN quantity
+                ELSE 0
+              END
+            ),
+            0
+          )::INTEGER AS "usedTickets"
+
+        FROM tickets
+
+        WHERE payment_status = 'PAID'
+        AND deleted_at IS NULL
+        `
+      );
+
+
+    return res.json(
+      result.rows[0]
+    );
+
 
   } catch (error) {
 
@@ -680,29 +1070,56 @@ function getDashboardStats(req, res) {
       error
     );
 
-    res.status(500).json({
+    return res.status(500).json({
+
       message:
         "Failed to load dashboard statistics."
     });
   }
 }
 
+
 /* =========================
    RECENT TICKETS
 ========================= */
 
-function getRecentTickets(req, res) {
+async function getRecentTickets(
+  req,
+  res
+) {
+
   try {
 
-    const tickets = db.prepare(
-      "SELECT * FROM tickets " +
-      "WHERE payment_status = 'PAID' " +
-      "AND deleted_at IS NULL " +
-      "ORDER BY created_at DESC " +
-      "LIMIT 8"
-    ).all();
+    const result =
+      await pool.query(
+        `
+        SELECT
+          id,
+          ticket_id,
+          event_id,
+          event_title,
+          ticket_type,
+          price,
+          quantity,
+          customer_name,
+          customer_email,
+          customer_phone,
+          payment_status,
+          ticket_status,
+          created_at
+        FROM tickets
+        WHERE payment_status = 'PAID'
+        AND deleted_at IS NULL
+        ORDER BY created_at DESC
+        LIMIT 8
+        `
+      );
 
-    res.json(tickets);
+
+    return res.json(
+      result.rows
+    );
+
 
   } catch (error) {
 
@@ -711,28 +1128,55 @@ function getRecentTickets(req, res) {
       error
     );
 
-    res.status(500).json({
+    return res.status(500).json({
+
       message:
         "Failed to load recent tickets."
     });
   }
 }
 
+
 /* =========================
    ALL TICKETS
 ========================= */
 
-function getAllTickets(req, res) {
+async function getAllTickets(
+  req,
+  res
+) {
+
   try {
 
-    const tickets = db.prepare(
-      "SELECT * FROM tickets " +
-      "WHERE payment_status = 'PAID' " +
-      "AND deleted_at IS NULL " +
-      "ORDER BY created_at DESC"
-    ).all();
+    const result =
+      await pool.query(
+        `
+        SELECT
+          id,
+          ticket_id,
+          event_id,
+          event_title,
+          ticket_type,
+          price,
+          quantity,
+          customer_name,
+          customer_email,
+          customer_phone,
+          payment_status,
+          ticket_status,
+          created_at
+        FROM tickets
+        WHERE payment_status = 'PAID'
+        AND deleted_at IS NULL
+        ORDER BY created_at DESC
+        `
+      );
 
-    res.json(tickets);
+
+    return res.json(
+      result.rows
+    );
+
 
   } catch (error) {
 
@@ -741,52 +1185,69 @@ function getAllTickets(req, res) {
       error
     );
 
-    res.status(500).json({
+    return res.status(500).json({
+
       message:
         "Failed to load tickets."
     });
   }
 }
 
+
 /* =========================
    SOFT DELETE
 ========================= */
 
-function softDeleteTicket(req, res) {
+async function softDeleteTicket(
+  req,
+  res
+) {
+
   try {
 
-    const { ticketId } =
-      req.params;
+    const {
+      ticketId
+    } = req.params;
 
-    const ticket = db.prepare(
-      "SELECT * FROM tickets WHERE ticket_id = ? AND deleted_at IS NULL"
-    ).get(ticketId);
 
-    if (!ticket) {
+    const result =
+      await pool.query(
+        `
+        UPDATE tickets
+
+        SET
+          deleted_at =
+            CURRENT_TIMESTAMP
+
+        WHERE ticket_id = $1
+        AND deleted_at IS NULL
+
+        RETURNING ticket_id
+        `,
+        [ticketId]
+      );
+
+
+    if (
+      result.rows.length === 0
+    ) {
+
       return res.status(404).json({
+
         message:
           "Ticket not found or already deleted."
       });
     }
 
-    const result = db.prepare(
-      "UPDATE tickets SET deleted_at = CURRENT_TIMESTAMP WHERE ticket_id = ?"
-    ).run(ticketId);
 
-    if (
-      result.changes === 0
-    ) {
-      return res.status(404).json({
-        message:
-          "Ticket not found."
-      });
-    }
+    return res.json({
 
-    res.json({
       message:
         "Ticket moved to deleted tickets successfully.",
+
       ticketId
     });
+
 
   } catch (error) {
 
@@ -795,52 +1256,63 @@ function softDeleteTicket(req, res) {
       error
     );
 
-    res.status(500).json({
+    return res.status(500).json({
+
       message:
         "Failed to delete ticket."
     });
   }
 }
 
+
 /* =========================
    PERMANENT DELETE
 ========================= */
 
-function permanentDeleteTicket(req, res) {
+async function permanentDeleteTicket(
+  req,
+  res
+) {
+
   try {
 
-    const { ticketId } =
-      req.params;
+    const {
+      ticketId
+    } = req.params;
 
-    const ticket = db.prepare(
-      "SELECT * FROM tickets WHERE ticket_id = ? AND deleted_at IS NOT NULL"
-    ).get(ticketId);
 
-    if (!ticket) {
+    const result =
+      await pool.query(
+        `
+        DELETE FROM tickets
+        WHERE ticket_id = $1
+        AND deleted_at IS NOT NULL
+        RETURNING ticket_id
+        `,
+        [ticketId]
+      );
+
+
+    if (
+      result.rows.length === 0
+    ) {
+
       return res.status(404).json({
+
         message:
           "Ticket not found in deleted items."
       });
     }
 
-    const result = db.prepare(
-      "DELETE FROM tickets WHERE ticket_id = ?"
-    ).run(ticketId);
 
-    if (
-      result.changes === 0
-    ) {
-      return res.status(404).json({
-        message:
-          "Ticket not found."
-      });
-    }
+    return res.json({
 
-    res.json({
       message:
         "Ticket permanently deleted.",
+
       ticketId
     });
+
 
   } catch (error) {
 
@@ -849,27 +1321,55 @@ function permanentDeleteTicket(req, res) {
       error
     );
 
-    res.status(500).json({
+    return res.status(500).json({
+
       message:
         "Failed to permanently delete ticket."
     });
   }
 }
 
+
 /* =========================
    GET DELETED TICKETS
 ========================= */
 
-function getDeletedTickets(req, res) {
+async function getDeletedTickets(
+  req,
+  res
+) {
+
   try {
 
-    const tickets = db.prepare(
-      "SELECT * FROM tickets " +
-      "WHERE deleted_at IS NOT NULL " +
-      "ORDER BY deleted_at DESC"
-    ).all();
+    const result =
+      await pool.query(
+        `
+        SELECT
+          id,
+          ticket_id,
+          event_id,
+          event_title,
+          ticket_type,
+          price,
+          quantity,
+          customer_name,
+          customer_email,
+          customer_phone,
+          payment_status,
+          ticket_status,
+          deleted_at,
+          created_at
+        FROM tickets
+        WHERE deleted_at IS NOT NULL
+        ORDER BY deleted_at DESC
+        `
+      );
 
-    res.json(tickets);
+
+    return res.json(
+      result.rows
+    );
+
 
   } catch (error) {
 
@@ -878,52 +1378,68 @@ function getDeletedTickets(req, res) {
       error
     );
 
-    res.status(500).json({
+    return res.status(500).json({
+
       message:
         "Failed to load deleted tickets."
     });
   }
 }
 
+
 /* =========================
    RESTORE
 ========================= */
 
-function restoreTicket(req, res) {
+async function restoreTicket(
+  req,
+  res
+) {
+
   try {
 
-    const { ticketId } =
-      req.params;
+    const {
+      ticketId
+    } = req.params;
 
-    const ticket = db.prepare(
-      "SELECT * FROM tickets WHERE ticket_id = ? AND deleted_at IS NOT NULL"
-    ).get(ticketId);
 
-    if (!ticket) {
+    const result =
+      await pool.query(
+        `
+        UPDATE tickets
+
+        SET
+          deleted_at = NULL
+
+        WHERE ticket_id = $1
+        AND deleted_at IS NOT NULL
+
+        RETURNING ticket_id
+        `,
+        [ticketId]
+      );
+
+
+    if (
+      result.rows.length === 0
+    ) {
+
       return res.status(404).json({
+
         message:
           "Ticket not found in deleted items."
       });
     }
 
-    const result = db.prepare(
-      "UPDATE tickets SET deleted_at = NULL WHERE ticket_id = ?"
-    ).run(ticketId);
 
-    if (
-      result.changes === 0
-    ) {
-      return res.status(404).json({
-        message:
-          "Ticket not found."
-      });
-    }
+    return res.json({
 
-    res.json({
       message:
         "Ticket restored successfully.",
+
       ticketId
     });
+
 
   } catch (error) {
 
@@ -932,21 +1448,24 @@ function restoreTicket(req, res) {
       error
     );
 
-    res.status(500).json({
+    return res.status(500).json({
+
       message:
         "Failed to restore ticket."
     });
   }
 }
 
+
 /* =========================
    LOOKUP BY EMAIL + EVENT
 ========================= */
 
-function lookupTicketByEmailAndEvent(
+async function lookupTicketByEmailAndEvent(
   req,
   res
 ) {
+
   try {
 
     const {
@@ -954,29 +1473,56 @@ function lookupTicketByEmailAndEvent(
       eventId
     } = req.query;
 
+
     if (
       !email ||
       !eventId
     ) {
+
       return res.status(400).json({
+
         message:
           "Email and event ID are required."
       });
     }
 
-    const tickets = db.prepare(
-      "SELECT * FROM tickets " +
-      "WHERE customer_email = ? " +
-      "AND event_id = ? " +
-      "AND payment_status = 'PAID' " +
-      "AND deleted_at IS NULL " +
-      "ORDER BY created_at DESC"
-    ).all(
-      email,
-      String(eventId)
+
+    const result =
+      await pool.query(
+        `
+        SELECT
+          id,
+          ticket_id,
+          event_id,
+          event_title,
+          ticket_type,
+          price,
+          quantity,
+          customer_name,
+          customer_email,
+          customer_phone,
+          payment_status,
+          ticket_status,
+          created_at
+        FROM tickets
+        WHERE LOWER(customer_email) =
+              LOWER($1)
+        AND event_id = $2
+        AND payment_status = 'PAID'
+        AND deleted_at IS NULL
+        ORDER BY created_at DESC
+        `,
+        [
+          String(email).trim(),
+          Number(eventId)
+        ]
+      );
+
+
+    return res.json(
+      result.rows
     );
 
-    res.json(tickets);
 
   } catch (error) {
 
@@ -985,28 +1531,42 @@ function lookupTicketByEmailAndEvent(
       error
     );
 
-    res.status(500).json({
+    return res.status(500).json({
+
       message:
         "Failed to lookup ticket."
     });
   }
 }
 
+
 /* =========================
    EXPORTS
 ========================= */
 
 module.exports = {
+
   createTicket,
+
   getTicket,
+
   verifyTicket,
+
   verifyTicketCode,
+
   getDashboardStats,
+
   getRecentTickets,
+
   getAllTickets,
+
   softDeleteTicket,
+
   permanentDeleteTicket,
+
   getDeletedTickets,
+
   restoreTicket,
+
   lookupTicketByEmailAndEvent
 };

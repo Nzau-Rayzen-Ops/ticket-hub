@@ -1,23 +1,19 @@
-﻿const db = require("../database");
+﻿const pool = require("../config/db");
 
 /* =========================
    GET ALL EVENTS
 ========================= */
 
-function getEvents(req, res) {
+async function getEvents(req, res) {
   try {
-    const events = db
-      .prepare(
-        `
-        SELECT *
-        FROM events
-        WHERE status != 'ARCHIVED'
-        ORDER BY date ASC, time ASC
-        `
-      )
-      .all();
+    const result = await pool.query(`
+      SELECT *
+      FROM events
+      WHERE status != 'ARCHIVED'
+      ORDER BY date ASC, time ASC
+    `);
 
-    res.json(events);
+    res.json(result.rows);
   } catch (error) {
     console.error("Get events error:", error);
 
@@ -32,17 +28,18 @@ function getEvents(req, res) {
    GET SINGLE EVENT
 ========================= */
 
-function getEvent(req, res) {
+async function getEvent(req, res) {
   try {
-    const event = db
-      .prepare(
-        `
-        SELECT *
-        FROM events
-        WHERE id = ?
-        `
-      )
-      .get(req.params.id);
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM events
+      WHERE id = $1
+      `,
+      [req.params.id]
+    );
+
+    const event = result.rows[0];
 
     if (!event) {
       return res.status(404).json({
@@ -65,7 +62,7 @@ function getEvent(req, res) {
    CREATE EVENT
 ========================= */
 
-function createEvent(req, res) {
+async function createEvent(req, res) {
   try {
     const {
       title,
@@ -86,6 +83,7 @@ function createEvent(req, res) {
       early_bird_expiry
     } = req.body;
 
+
     /* =========================
        REQUIRED FIELDS
     ========================= */
@@ -105,6 +103,7 @@ function createEvent(req, res) {
           "Title, date, time, venue, price and total tickets are required."
       });
     }
+
 
     /* =========================
        NUMBERS
@@ -137,6 +136,7 @@ function createEvent(req, res) {
       });
     }
 
+
     /* =========================
        TICKET TYPE PRICES
     ========================= */
@@ -158,6 +158,7 @@ function createEvent(req, res) {
       group3_price === ""
         ? null
         : Number(group3_price);
+
 
     if (
       !Number.isFinite(singlePrice) ||
@@ -195,6 +196,7 @@ function createEvent(req, res) {
       });
     }
 
+
     /* =========================
        EARLY BIRD
     ========================= */
@@ -208,6 +210,7 @@ function createEvent(req, res) {
     let earlyBirdExpiry = null;
 
     if (earlyBirdEnabled) {
+
       if (
         early_bird_single_price === undefined ||
         early_bird_single_price === ""
@@ -223,6 +226,7 @@ function createEvent(req, res) {
 
       earlyBirdExpiry =
         early_bird_expiry || null;
+
 
       if (
         !Number.isFinite(earlyBirdPrice) ||
@@ -242,38 +246,39 @@ function createEvent(req, res) {
       }
     }
 
+
     /* =========================
-       CREATE EVENT
+       INSERT EVENT
     ========================= */
 
-    const result = db
-      .prepare(
-        `
-        INSERT INTO events (
-          title,
-          description,
-          date,
-          time,
-          venue,
-          price,
-          capacity,
-          total_tickets,
-          available_tickets,
-          image,
-          single_price,
-          couple_price,
-          group3_price,
-          early_bird_enabled,
-          early_bird_single_price,
-          early_bird_expiry
-        )
-        VALUES (
-          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-          ?, ?, ?, ?, ?, ?
-        )
-        `
+    const result = await pool.query(
+      `
+      INSERT INTO events (
+        title,
+        description,
+        date,
+        time,
+        venue,
+        price,
+        capacity,
+        total_tickets,
+        available_tickets,
+        image,
+        single_price,
+        couple_price,
+        group3_price,
+        early_bird_enabled,
+        early_bird_single_price,
+        early_bird_expiry
       )
-      .run(
+      VALUES (
+        $1, $2, $3, $4, $5,
+        $6, $7, $8, $9, $10,
+        $11, $12, $13, $14, $15, $16
+      )
+      RETURNING *
+      `,
+      [
         title,
         description || "",
         date,
@@ -292,25 +297,18 @@ function createEvent(req, res) {
         earlyBirdEnabled ? 1 : 0,
         earlyBirdPrice,
         earlyBirdExpiry
-      );
+      ]
+    );
 
-    const event = db
-      .prepare(
-        `
-        SELECT *
-        FROM events
-        WHERE id = ?
-        `
-      )
-      .get(result.lastInsertRowid);
 
     return res.status(201).json({
       message:
         "Event created successfully.",
-      event
+      event: result.rows[0]
     });
 
   } catch (error) {
+
     console.error(
       "Create event error:",
       error
@@ -329,29 +327,36 @@ function createEvent(req, res) {
    UPDATE EVENT
 ========================= */
 
-function updateEvent(req, res) {
+async function updateEvent(req, res) {
+  const client = await pool.connect();
+
   try {
+
     const eventId = req.params.id;
+
 
     /* =========================
        GET EXISTING EVENT
     ========================= */
 
-    const existingEvent = db
-      .prepare(
-        `
-        SELECT *
-        FROM events
-        WHERE id = ?
-        `
-      )
-      .get(eventId);
+    const existingResult = await client.query(
+      `
+      SELECT *
+      FROM events
+      WHERE id = $1
+      `,
+      [eventId]
+    );
+
+    const existingEvent =
+      existingResult.rows[0];
 
     if (!existingEvent) {
       return res.status(404).json({
         message: "Event not found."
       });
     }
+
 
     const {
       title,
@@ -533,6 +538,7 @@ function updateEvent(req, res) {
         Number(couple_price);
     }
 
+
     if (
       updatedCouplePrice !== null &&
       (
@@ -570,6 +576,7 @@ function updateEvent(req, res) {
       updatedGroup3Price =
         Number(group3_price);
     }
+
 
     if (
       updatedGroup3Price !== null &&
@@ -665,11 +672,8 @@ function updateEvent(req, res) {
             "Early Bird requires an expiry date/time."
         });
       }
+
     } else {
-      /*
-        If Early Bird is disabled,
-        keep the database clean.
-      */
 
       updatedEarlyBirdPrice = null;
       updatedEarlyBirdExpiry = null;
@@ -713,67 +717,52 @@ function updateEvent(req, res) {
        UPDATE DATABASE
     ========================= */
 
-    const update = db.prepare(
+    const result = await client.query(
       `
       UPDATE events
       SET
-        title = ?,
-        description = ?,
-        date = ?,
-        time = ?,
-        venue = ?,
-        price = ?,
-        capacity = ?,
-        total_tickets = ?,
-        available_tickets = ?,
-        image = ?,
-        single_price = ?,
-        couple_price = ?,
-        group3_price = ?,
-        early_bird_enabled = ?,
-        early_bird_single_price = ?,
-        early_bird_expiry = ?
-      WHERE id = ?
-      `
-    );
-
-    const result = update.run(
-      updatedTitle,
-      updatedDescription,
-      updatedDate,
-      updatedTime,
-      updatedVenue,
-
-      updatedPrice,
-
-      /*
-        Keep capacity synchronized
-        with total tickets.
-      */
-      updatedTotalTickets,
-
-      updatedTotalTickets,
-      updatedAvailableTickets,
-
-      updatedImage,
-
-      updatedSinglePrice,
-      updatedCouplePrice,
-      updatedGroup3Price,
-
-      updatedEarlyBirdEnabled ? 1 : 0,
-      updatedEarlyBirdPrice,
-      updatedEarlyBirdExpiry,
-
-      eventId
+        title = $1,
+        description = $2,
+        date = $3,
+        time = $4,
+        venue = $5,
+        price = $6,
+        capacity = $7,
+        total_tickets = $8,
+        available_tickets = $9,
+        image = $10,
+        single_price = $11,
+        couple_price = $12,
+        group3_price = $13,
+        early_bird_enabled = $14,
+        early_bird_single_price = $15,
+        early_bird_expiry = $16
+      WHERE id = $17
+      RETURNING *
+      `,
+      [
+        updatedTitle,
+        updatedDescription,
+        updatedDate,
+        updatedTime,
+        updatedVenue,
+        updatedPrice,
+        updatedTotalTickets,
+        updatedTotalTickets,
+        updatedAvailableTickets,
+        updatedImage,
+        updatedSinglePrice,
+        updatedCouplePrice,
+        updatedGroup3Price,
+        updatedEarlyBirdEnabled ? 1 : 0,
+        updatedEarlyBirdPrice,
+        updatedEarlyBirdExpiry,
+        eventId
+      ]
     );
 
 
-    /* =========================
-       VERIFY UPDATE
-    ========================= */
-
-    if (result.changes === 0) {
+    if (result.rows.length === 0) {
       return res.status(500).json({
         message:
           "Event could not be updated."
@@ -781,24 +770,10 @@ function updateEvent(req, res) {
     }
 
 
-    /* =========================
-       RETURN UPDATED EVENT
-    ========================= */
-
-    const updatedEvent = db
-      .prepare(
-        `
-        SELECT *
-        FROM events
-        WHERE id = ?
-        `
-      )
-      .get(eventId);
-
     return res.json({
       message:
         "Event updated successfully.",
-      event: updatedEvent
+      event: result.rows[0]
     });
 
   } catch (error) {
@@ -830,20 +805,14 @@ function updateEvent(req, res) {
       "===================================="
     );
 
-    /*
-      IMPORTANT:
-      During development we return
-      the actual database error so
-      we can identify the exact
-      problem instead of just seeing
-      "Failed to update event."
-    */
-
     return res.status(500).json({
       message:
         error.message ||
         "Failed to update event."
     });
+
+  } finally {
+    client.release();
   }
 }
 
@@ -852,17 +821,23 @@ function updateEvent(req, res) {
    ARCHIVE EVENT
 ========================= */
 
-function deleteEvent(req, res) {
+async function deleteEvent(req, res) {
+
+  const client = await pool.connect();
+
   try {
-    const event = db
-      .prepare(
-        `
-        SELECT *
-        FROM events
-        WHERE id = ?
-        `
-      )
-      .get(req.params.id);
+
+    const eventResult = await client.query(
+      `
+      SELECT *
+      FROM events
+      WHERE id = $1
+      `,
+      [req.params.id]
+    );
+
+    const event =
+      eventResult.rows[0];
 
     if (!event) {
       return res.status(404).json({
@@ -870,38 +845,45 @@ function deleteEvent(req, res) {
       });
     }
 
-    const archiveEvent =
-      db.transaction(() => {
 
-        /* =========================
-           ARCHIVE EVENT
-        ========================= */
+    /* =========================
+       START TRANSACTION
+    ========================= */
 
-        db.prepare(
-          `
-          UPDATE events
-          SET status = 'ARCHIVED'
-          WHERE id = ?
-          `
-        ).run(req.params.id);
+    await client.query("BEGIN");
 
 
-        /* =========================
-           ARCHIVE TICKETS
-        ========================= */
+    /* =========================
+       ARCHIVE EVENT
+    ========================= */
 
-        db.prepare(
-          `
-          UPDATE tickets
-          SET deleted_at = CURRENT_TIMESTAMP
-          WHERE event_id = ?
-          AND deleted_at IS NULL
-          `
-        ).run(String(req.params.id));
+    await client.query(
+      `
+      UPDATE events
+      SET status = 'ARCHIVED'
+      WHERE id = $1
+      `,
+      [req.params.id]
+    );
 
-      });
 
-    archiveEvent();
+    /* =========================
+       ARCHIVE TICKETS
+    ========================= */
+
+    await client.query(
+      `
+      UPDATE tickets
+      SET deleted_at = CURRENT_TIMESTAMP
+      WHERE event_id = $1
+      AND deleted_at IS NULL
+      `,
+      [String(req.params.id)]
+    );
+
+
+    await client.query("COMMIT");
+
 
     res.json({
       message:
@@ -909,6 +891,11 @@ function deleteEvent(req, res) {
     });
 
   } catch (error) {
+
+    try {
+      await client.query("ROLLBACK");
+    } catch (_) {}
+
     console.error(
       "Archive event error:",
       error
@@ -919,6 +906,9 @@ function deleteEvent(req, res) {
         error.message ||
         "Failed to archive event."
     });
+
+  } finally {
+    client.release();
   }
 }
 
