@@ -82,7 +82,7 @@ async function generateEventVerificationCodes() {
       FROM events e
 
       INNER JOIN tickets t
-        ON t.event_id = e.id
+        ON t.event_id = e.id::text
 
       WHERE e.date = $1
       AND e.status != 'ARCHIVED'
