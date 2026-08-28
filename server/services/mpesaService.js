@@ -20,11 +20,11 @@ const SASAPAY_BASE_URL =
     ? "https://sasapay.app"
     : "https://sandbox.sasapay.app";
 
-const SASAPAY_V1_BASE_URL =
-  `${SASAPAY_BASE_URL}/api/v1`;
-
 const SASAPAY_WAAS_BASE_URL =
   `${SASAPAY_BASE_URL}/api/v2/waas`;
+
+const SASAPAY_PAYMENT_BASE_URL =
+  `${SASAPAY_BASE_URL}/api/v1`;
 
 const CLIENT_ID =
   process.env.SASAPAY_CLIENT_ID;
@@ -36,7 +36,7 @@ const MERCHANT_CODE =
   process.env.SASAPAY_MERCHANT_CODE;
 
 /*
-  Kenya M-Pesa network code according to SasaPay.
+  SasaPay network code for M-Pesa Kenya.
 */
 const MPESA_NETWORK_CODE = "63902";
 
@@ -61,7 +61,6 @@ function validateConfig() {
   }
 
   if (missing.length > 0) {
-
     throw new Error(
       `Missing SasaPay configuration: ${missing.join(", ")}`
     );
@@ -75,9 +74,7 @@ function validateConfig() {
 function formatPhoneNumber(phoneNumber) {
 
   if (!phoneNumber) {
-    throw new Error(
-      "Phone number is required."
-    );
+    throw new Error("Phone number is required.");
   }
 
   let phone =
@@ -123,19 +120,30 @@ async function getAccessToken() {
       `${CLIENT_ID}:${CLIENT_SECRET}`
     ).toString("base64");
 
+  const authUrl =
+    `${SASAPAY_BASE_URL}/api/v2/waas/auth/token/?grant_type=client_credentials`;
+
   try {
 
     console.log(
       `🔐 Requesting SasaPay access token (${SASAPAY_ENVIRONMENT})...`
     );
 
+    console.log(
+      "SasaPay auth URL:",
+      authUrl
+    );
+
     const response =
       await axios.get(
-        `${SASAPAY_BASE_URL}/oauth/v1/generate?grant_type=client_credentials`,
+        authUrl,
         {
           headers: {
             Authorization:
-              `Basic ${credentials}`
+              `Basic ${credentials}`,
+
+            Accept:
+              "application/json"
           },
 
           timeout: 30000
@@ -181,7 +189,7 @@ async function getAccessToken() {
 }
 
 /* =========================================================
-   INITIATE C2B PAYMENT / M-PESA STK
+   INITIATE SASAPAY M-PESA PAYMENT
 ========================================================= */
 
 async function initiateSTKPush(
@@ -225,10 +233,6 @@ async function initiateSTKPush(
   const callbackUrl =
     `${backendUrl.replace(/\/$/, "")}/api/mpesa/callback`;
 
-  /*
-    SasaPay AccountReference has a maximum length.
-    Keep the ticket reference short and safe.
-  */
   const reference =
     String(
       accountReference || "TICKET"
@@ -246,11 +250,7 @@ async function initiateSTKPush(
       .substring(0, 50);
 
   /*
-    IMPORTANT:
-
-    This is a SasaPay C2B payment request.
-
-    63902 = M-PESA Kenya.
+    SasaPay C2B / M-Pesa payment request.
   */
 
   const payload = {
@@ -280,6 +280,9 @@ async function initiateSTKPush(
       callbackUrl
   };
 
+  const paymentUrl =
+    `${SASAPAY_PAYMENT_BASE_URL}/payments/request-payment/`;
+
   try {
 
     console.log(
@@ -293,6 +296,11 @@ async function initiateSTKPush(
     console.log(
       "Environment:",
       SASAPAY_ENVIRONMENT
+    );
+
+    console.log(
+      "Payment URL:",
+      paymentUrl
     );
 
     console.log(
@@ -331,7 +339,7 @@ async function initiateSTKPush(
 
     const response =
       await axios.post(
-        `${SASAPAY_V1_BASE_URL}/payments/request-payment/`,
+        paymentUrl,
         payload,
         {
           headers: {
@@ -358,11 +366,6 @@ async function initiateSTKPush(
     const data =
       response.data || {};
 
-    /*
-      SasaPay can return status=false with HTTP 200.
-      Therefore check the business response too.
-    */
-
     if (
       data.status === false ||
       data.status === "false"
@@ -380,7 +383,9 @@ async function initiateSTKPush(
       data.CheckoutRequestID ||
       data.CheckoutRequestId ||
       data.checkoutRequestID ||
-      data.checkoutRequestId;
+      data.checkoutRequestId ||
+      data.PaymentRequestID ||
+      data.paymentRequestID;
 
     const merchantRequestID =
       data.MerchantRequestID ||
@@ -404,7 +409,7 @@ async function initiateSTKPush(
     if (!checkoutRequestID) {
 
       console.error(
-        "❌ SasaPay did not return CheckoutRequestID:",
+        "❌ SasaPay did not return a payment request ID:",
         data
       );
 
@@ -437,7 +442,6 @@ async function initiateSTKPush(
       TransactionReference:
         data.TransactionReference ||
         data.transactionReference ||
-        data.PaymentRequestID ||
         null,
 
       raw:
@@ -460,6 +464,7 @@ async function initiateSTKPush(
 
     const message =
       providerData.ResponseDescription ||
+      providerData.ResponseDesc ||
       providerData.detail ||
       providerData.message ||
       providerData.error ||
@@ -490,11 +495,19 @@ async function querySTKPushStatus(
   const token =
     await getAccessToken();
 
+  const statusUrl =
+    `${SASAPAY_WAAS_BASE_URL}/transactions/status/`;
+
   try {
+
+    console.log(
+      "🔎 Checking SasaPay payment status:",
+      checkoutRequestID
+    );
 
     const response =
       await axios.post(
-        `${SASAPAY_WAAS_BASE_URL}/transactions/status/`,
+        statusUrl,
         {
           merchantCode:
             MERCHANT_CODE,
@@ -533,8 +546,8 @@ async function querySTKPushStatus(
 
     const resultCode =
       data.ResultCode ??
-      responseData.responseCode ??
       data.responseCode ??
+      responseData.responseCode ??
       "";
 
     const resultDescription =
@@ -546,12 +559,15 @@ async function querySTKPushStatus(
 
     const paid =
       data.Paid === true ||
-      data.Paid === "true";
+      data.Paid === "true" ||
+      data.paid === true ||
+      data.paid === "true";
 
     const transactionCode =
       data.TransactionCode ||
       data.SasaPayTransactionCode ||
       data.ThirdPartyTransactionCode ||
+      data.MpesaReceiptNumber ||
       null;
 
     return {
@@ -571,6 +587,7 @@ async function querySTKPushStatus(
       AmountPaid:
         data.AmountPaid ??
         data.TransactionAmount ??
+        data.amountPaid ??
         null,
 
       CheckoutRequestID:
