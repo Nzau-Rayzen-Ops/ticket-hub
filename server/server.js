@@ -104,7 +104,7 @@ app.use("/api/admin", adminRoutes);
    Any path that doesn't match an asset or API endpoint 
    is served index.html so React Router can process it client-side.
 */
-app.get("*", (req, res, next) => {
+app.get("/*any", (req, res, next) => {
   if (req.path.startsWith("/api/")) {
     return next();
   }

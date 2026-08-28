@@ -1,27 +1,35 @@
 {
-  "name": "ticket-hub",
-  "private": true,
+  "name": "ticket-hub-monorepo-root",
   "version": "1.0.0",
-  "type": "module",
+  "description": "TicketHub monorepo orchestration root",
+  "main": "server/server.js",
+  "type": "commonjs",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
+    "install-frontend": "npm install --prefix frontend",
+    "build-frontend": "npm run build --prefix frontend",
+    "build": "npm install && npm run install-frontend && npm run build-frontend",
+    "postbuild": "node server/scripts/migrate-postgres.js",
     "start": "node server/server.js",
-    "postinstall": "npm run build"
+    "dev": "nodemon server/server.js",
+    "test": "echo \"No tests configured\""
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
-    "@vitejs/plugin-react": "^5.1.1",
-    "html5-qrcode": "^2.3.8",
-    "qrcode.react": "^4.2.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "react-router-dom": "^7.18.2"
+    "axios": "^1.19.0",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "node-cron": "^4.6.0",
+    "nodemailer": "^9.0.5",
+    "pg": "^8.23.0",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
-    "vite": "^8.2.1"
-  },
-  "engines": {
-    "node": "18.x"
+    "nodemon": "^3.1.14"
   }
 }
