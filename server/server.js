@@ -17,7 +17,7 @@ const db = require("./config/db");
 // Run migrations directly at server initialization phase
 try {
   console.log("Initializing database tables verification...");
-  require("./scripts/migrate-postgres.js");
+  require("./scripts/create-tables.js");
 } catch (migError) {
   console.error("Migration warning on initialization:", migError.message);
 }
