@@ -1,4 +1,5 @@
 ﻿const express = require("express");
+const crypto = require("crypto");
 
 const router = express.Router();
 
@@ -10,7 +11,147 @@ const {
 const pool = require("../config/db");
 
 /* =========================================================
-   INITIATE SASAPAY PAYMENT
+   SASAPAY CALLBACK SIGNATURE VERIFICATION
+========================================================= */
+
+function verifySasaPaySignature(req) {
+
+  const signature =
+    req.get("X-SasaPay-Signature");
+
+  /*
+    Signature verification is enabled by default.
+
+    During initial testing you can set:
+      SASAPAY_VERIFY_CALLBACK_SIGNATURE=false
+
+    Once confirmed, keep it true.
+  */
+
+  const verifySignature =
+    String(
+      process.env.SASAPAY_VERIFY_CALLBACK_SIGNATURE || "true"
+    ).toLowerCase() === "true";
+
+  if (!verifySignature) {
+    return true;
+  }
+
+  if (!signature) {
+
+    console.warn(
+      "⚠️ SasaPay callback has no X-SasaPay-Signature header."
+    );
+
+    return false;
+  }
+
+  const data =
+    req.body || {};
+
+  const transactionCode =
+    data.sasapay_transaction_code ||
+    data.TransactionCode ||
+    data.TransID ||
+    data.SasaPayTransactionCode ||
+    "";
+
+  const merchantCode =
+    data.merchant_code ||
+    data.merchantCode ||
+    data.MerchantCode ||
+    data.BusinessShortCode ||
+    process.env.SASAPAY_MERCHANT_CODE ||
+    "";
+
+  const accountNumber =
+    data.account_number ||
+    data.accountNumber ||
+    data.AccountNumber ||
+    data.CustomerMobile ||
+    data.MSISDN ||
+    "";
+
+  const paymentReference =
+    data.payment_reference ||
+    data.BillRefNumber ||
+    data.InvoiceNumber ||
+    data.MerchantReference ||
+    data.MerchantTransactionReference ||
+    data.TransactionReference ||
+    data.PaymentRequestID ||
+    data.MerchantRequestID ||
+    "";
+
+  const amount =
+    data.amount ??
+    data.TransactionAmount ??
+    data.TransAmount ??
+    data.AmountPaid ??
+    data.PaidAmount ??
+    data.Amount ??
+    "";
+
+  if (
+    !transactionCode ||
+    !merchantCode ||
+    !accountNumber ||
+    !paymentReference ||
+    amount === ""
+  ) {
+
+    console.warn(
+      "⚠️ Cannot verify SasaPay callback signature because required fields are missing."
+    );
+
+    return false;
+  }
+
+  const message =
+    `${transactionCode}-${merchantCode}-${accountNumber}-${paymentReference}-${amount}`;
+
+  const secret =
+    process.env.SASAPAY_CLIENT_ID;
+
+  if (!secret) {
+
+    console.error(
+      "❌ SASAPAY_CLIENT_ID is missing. Cannot verify callback signature."
+    );
+
+    return false;
+  }
+
+  const expectedSignature =
+    crypto
+      .createHmac(
+        "sha512",
+        secret
+      )
+      .update(message, "utf8")
+      .digest("hex");
+
+  try {
+
+    return crypto.timingSafeEqual(
+      Buffer.from(
+        expectedSignature,
+        "utf8"
+      ),
+      Buffer.from(
+        String(signature),
+        "utf8"
+      )
+    );
+
+  } catch {
+
+    return false;
+  }
+}
+
+/* =========================================================
+   INITIATE SASAPAY M-PESA PAYMENT
 ========================================================= */
 
 router.post(
@@ -35,7 +176,9 @@ router.post(
       ) {
 
         return res.status(400).json({
+
           success: false,
+
           message:
             "Phone number, amount, and account reference are required."
         });
@@ -50,7 +193,9 @@ router.post(
       ) {
 
         return res.status(400).json({
+
           success: false,
+
           message:
             "Invalid payment amount."
         });
@@ -101,7 +246,7 @@ router.post(
       }
 
       /* =====================================================
-         SEND PAYMENT REQUEST TO SASAPAY
+         SEND PAYMENT REQUEST
       ===================================================== */
 
       const result =
@@ -123,7 +268,9 @@ router.post(
         );
 
         return res.status(502).json({
+
           success: false,
+
           message:
             "SasaPay did not return a valid payment request."
         });
@@ -238,14 +385,18 @@ router.post(
       if (error.code === "23505") {
 
         return res.status(409).json({
+
           success: false,
+
           message:
             "This payment request already exists."
         });
       }
 
       return res.status(500).json({
+
         success: false,
+
         message:
           error.message ||
           "Payment initiation failed."
@@ -271,7 +422,9 @@ router.get(
       if (!checkoutRequestID) {
 
         return res.status(400).json({
+
           success: false,
+
           message:
             "Checkout Request ID is required."
         });
@@ -290,10 +443,14 @@ router.get(
           ]
         );
 
-      if (existingResult.rows.length === 0) {
+      if (
+        existingResult.rows.length === 0
+      ) {
 
         return res.status(404).json({
+
           success: false,
+
           message:
             "Payment transaction not found."
         });
@@ -302,9 +459,13 @@ router.get(
       const transaction =
         existingResult.rows[0];
 
-      /* Already successful */
+      /* =====================================================
+         ALREADY SUCCESSFUL
+      ===================================================== */
 
-      if (transaction.status === "SUCCESS") {
+      if (
+        transaction.status === "SUCCESS"
+      ) {
 
         return res.json({
 
@@ -327,9 +488,13 @@ router.get(
         });
       }
 
-      /* Already failed */
+      /* =====================================================
+         ALREADY FAILED
+      ===================================================== */
 
-      if (transaction.status === "FAILED") {
+      if (
+        transaction.status === "FAILED"
+      ) {
 
         return res.json({
 
@@ -368,7 +533,8 @@ router.get(
         );
 
       const resultDesc =
-        result.ResultDesc || "";
+        result.ResultDesc ||
+        "";
 
       /* =====================================================
          SUCCESS
@@ -434,7 +600,65 @@ router.get(
       }
 
       /* =====================================================
-         PENDING
+         FAILED
+      ===================================================== */
+
+      if (
+        resultCode &&
+        resultCode !== "0"
+      ) {
+
+        await pool.query(
+          `
+          UPDATE mpesa_transactions
+          SET
+            status = 'FAILED',
+            result_code = $1,
+            result_desc = $2,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE checkout_request_id = $3
+          AND status = 'PENDING'
+          `,
+          [
+
+            resultCode,
+
+            resultDesc ||
+              "Payment failed.",
+
+            checkoutRequestID
+          ]
+        );
+
+        const updated =
+          await pool.query(
+            `
+            SELECT *
+            FROM mpesa_transactions
+            WHERE checkout_request_id = $1
+            LIMIT 1
+            `,
+            [
+              checkoutRequestID
+            ]
+          );
+
+        return res.json({
+
+          success: true,
+
+          status:
+            "FAILED",
+
+          transaction:
+            updated.rows[0],
+
+          result
+        });
+      }
+
+      /* =====================================================
+         STILL PENDING
       ===================================================== */
 
       return res.json({
@@ -443,6 +667,8 @@ router.get(
 
         status:
           "PENDING",
+
+        transaction,
 
         result
       });
@@ -455,7 +681,9 @@ router.get(
       );
 
       return res.status(500).json({
+
         success: false,
+
         message:
           error.message ||
           "Failed to check payment status."
@@ -473,18 +701,21 @@ router.post(
   async (req, res) => {
 
     /*
-      Acknowledge immediately.
+      Acknowledge the callback immediately.
     */
 
     res.status(200).json({
+
       ResultCode: 0,
-      ResultDesc: "Accepted"
+
+      ResultDesc:
+        "Accepted"
     });
 
     try {
 
       const data =
-        req.body;
+        req.body || {};
 
       console.log(
         "📥 SasaPay callback received:"
@@ -498,13 +729,29 @@ router.post(
         )
       );
 
-      /*
-        SasaPay callback formats can differ
-        between products.
+      /* =====================================================
+         VERIFY CALLBACK SIGNATURE
+      ===================================================== */
 
-        We therefore accept the common
-        transaction identifiers.
-      */
+      const signatureValid =
+        verifySasaPaySignature(req);
+
+      if (!signatureValid) {
+
+        console.error(
+          "❌ Invalid SasaPay callback signature."
+        );
+
+        return;
+      }
+
+      console.log(
+        "✅ SasaPay callback signature verified."
+      );
+
+      /* =====================================================
+         GET CHECKOUT REQUEST ID
+      ===================================================== */
 
       const checkoutRequestID =
         data.CheckoutRequestID ||
@@ -520,6 +767,10 @@ router.post(
 
         return;
       }
+
+      /* =====================================================
+         RESULT CODE
+      ===================================================== */
 
       const resultCode =
         String(
@@ -540,13 +791,17 @@ router.post(
          SUCCESS
       ===================================================== */
 
-      if (resultCode === "0") {
+      if (
+        resultCode === "0"
+      ) {
 
         const transactionId =
-          data.SasaPayTransactionCode ||
-          data.SasaPayTransactionID ||
           data.TransactionCode ||
-          data.MpesaReceiptNumber ||
+          data.SasaPayTransactionCode ||
+          data.sasapay_transaction_code ||
+          data.ThirdPartyTransID ||
+          data.ThirdPartyTransactionCode ||
+          data.BillRefNumber ||
           null;
 
         await pool.query(
@@ -583,7 +838,10 @@ router.post(
          FAILED
       ===================================================== */
 
-      if (resultCode) {
+      if (
+        resultCode &&
+        resultCode !== "0"
+      ) {
 
         await pool.query(
           `
@@ -608,7 +866,9 @@ router.post(
 
         console.log(
           "❌ SasaPay payment failed:",
-          checkoutRequestID
+          checkoutRequestID,
+          resultCode,
+          resultDesc
         );
       }
 
@@ -649,10 +909,14 @@ router.get(
           ]
         );
 
-      if (result.rows.length === 0) {
+      if (
+        result.rows.length === 0
+      ) {
 
         return res.status(404).json({
+
           success: false,
+
           message:
             "Transaction not found."
         });
@@ -674,7 +938,9 @@ router.get(
       );
 
       return res.status(500).json({
+
         success: false,
+
         message:
           "Failed to retrieve transaction."
       });
