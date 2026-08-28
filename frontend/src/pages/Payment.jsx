@@ -140,7 +140,7 @@ export default function Payment() {
 
         const response =
           await fetch(
-            `/api/mpesa/status/${encodeURIComponent(
+            `/api/mpesa/transaction/${encodeURIComponent(
               checkoutRequestID
             )}`
           );
@@ -166,7 +166,10 @@ export default function Payment() {
         ========================= */
 
         if (
-          data.status === "SUCCESS" ||
+          data.transaction?.status === "SUCCESS" ||
+          String(
+            data.transaction?.result_code
+          ) === "0" ||
           String(
             data.result?.ResultCode
           ) === "0"
@@ -216,10 +219,11 @@ export default function Payment() {
         ========================= */
 
         if (
-          data.status === "FAILED"
+          data.transaction?.status === "FAILED"
         ) {
 
           const description =
+            data.transaction?.result_desc ||
             data.result?.ResultDesc ||
             "The payment was not completed.";
 
@@ -586,3 +590,5 @@ export default function Payment() {
     </div>
   );
 }
+
+
