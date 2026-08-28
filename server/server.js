@@ -98,12 +98,61 @@ app.use(express.static(frontendPath));
 ========================= */
 
 app.get("/api/version", (req, res) => {
-  res.json({
-    success: true,
-    version: "88f8175",
-    phoneFormatter: "accepts-254-format",
-    timestamp: new Date().toISOString()
-  });
+
+  try {
+
+    const mpesaService =
+      require("./services/mpesaService");
+
+    const testPhone =
+      "254758157516";
+
+    let formatterResult = null;
+    let formatterError = null;
+
+    try {
+
+      formatterResult =
+        mpesaService.formatPhoneNumber(testPhone);
+
+    } catch (error) {
+
+      formatterError =
+        error.message;
+    }
+
+    res.json({
+
+      success: true,
+
+      version: "7b605e9",
+
+      phoneFormatter:
+        "diagnostic",
+
+      testPhone,
+
+      formatterResult,
+
+      formatterError,
+
+      timestamp:
+        new Date().toISOString()
+
+    });
+
+  } catch (error) {
+
+    res.status(500).json({
+
+      success: false,
+
+      error: error.message
+
+    });
+
+  }
+
 });
 app.get("/api/health", (req, res) => {
   res.json({
@@ -279,4 +328,5 @@ async function startServer() {
 }
 
 startServer();
+
 
