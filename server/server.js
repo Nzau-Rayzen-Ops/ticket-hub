@@ -97,6 +97,14 @@ app.use(express.static(frontendPath));
    API HEALTH CHECK
 ========================= */
 
+app.get("/api/version", (req, res) => {
+  res.json({
+    success: true,
+    version: "88f8175",
+    phoneFormatter: "accepts-254-format",
+    timestamp: new Date().toISOString()
+  });
+});
 app.get("/api/health", (req, res) => {
   res.json({
     status: "OK",
@@ -271,3 +279,4 @@ async function startServer() {
 }
 
 startServer();
+
