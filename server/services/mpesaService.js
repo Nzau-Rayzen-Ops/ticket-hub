@@ -1,6 +1,4 @@
-// server/services/mpesaService.js
-
-const axios = require("axios");
+﻿const axios = require("axios");
 const path = require("path");
 const dotenv = require("dotenv");
 
@@ -9,97 +7,83 @@ dotenv.config({
 });
 
 /* =========================================================
-   SAFARICOM DARaja CONFIGURATION
+   SASAPAY CONFIGURATION
 ========================================================= */
 
-const API_URL =
-  process.env.MPESA_ENVIRONMENT === "production"
-    ? "https://api.safaricom.co.ke"
-    : "https://sandbox.safaricom.co.ke";
+const SASAPAY_BASE_URL =
+  process.env.SASAPAY_ENVIRONMENT === "production"
+    ? "https://sasapay.app"
+    : "https://sandbox.sasapay.app";
 
-const CONSUMER_KEY =
-  process.env.MPESA_CONSUMER_KEY;
+const CLIENT_ID =
+  process.env.SASAPAY_CLIENT_ID;
 
-const CONSUMER_SECRET =
-  process.env.MPESA_CONSUMER_SECRET;
+const CLIENT_SECRET =
+  process.env.SASAPAY_CLIENT_SECRET;
 
-const PASSKEY =
-  process.env.MPESA_PASSKEY;
-
-const SHORTCODE =
-  process.env.MPESA_SHORTCODE;
+const MERCHANT_CODE =
+  process.env.SASAPAY_MERCHANT_CODE;
 
 /* =========================================================
    VALIDATE CONFIG
 ========================================================= */
 
 function validateConfig() {
+
   const missing = [];
 
-  if (!CONSUMER_KEY) {
-    missing.push("MPESA_CONSUMER_KEY");
+  if (!CLIENT_ID) {
+    missing.push("SASAPAY_CLIENT_ID");
   }
 
-  if (!CONSUMER_SECRET) {
-    missing.push("MPESA_CONSUMER_SECRET");
+  if (!CLIENT_SECRET) {
+    missing.push("SASAPAY_CLIENT_SECRET");
   }
 
-  if (!PASSKEY) {
-    missing.push("MPESA_PASSKEY");
-  }
-
-  if (!SHORTCODE) {
-    missing.push("MPESA_SHORTCODE");
+  if (!MERCHANT_CODE) {
+    missing.push("SASAPAY_MERCHANT_CODE");
   }
 
   if (missing.length > 0) {
+
     throw new Error(
-      `Missing M-Pesa configuration: ${missing.join(", ")}`
+      `Missing SasaPay configuration: ${missing.join(", ")}`
     );
   }
 }
 
 /* =========================================================
-   FORMAT KENYAN PHONE NUMBER
+   FORMAT PHONE
 ========================================================= */
 
 function formatPhoneNumber(phoneNumber) {
+
   if (!phoneNumber) {
     throw new Error("Phone number is required.");
   }
 
-  let phone = String(phoneNumber)
-    .replace(/\D/g, "");
-
-  /*
-    0712345678
-    -> 254712345678
-  */
+  let phone =
+    String(phoneNumber)
+      .replace(/\D/g, "");
 
   if (phone.startsWith("0")) {
+
     phone =
       "254" +
       phone.substring(1);
-  }
 
-  /*
-    712345678
-    -> 254712345678
-
-    112345678
-    -> 254112345678
-  */
-
-  else if (
+  } else if (
     phone.startsWith("7") ||
     phone.startsWith("1")
   ) {
+
     phone =
       "254" +
       phone;
   }
 
   if (!/^254[0-9]{9}$/.test(phone)) {
+
     throw new Error(
       "Invalid Kenyan phone number. Use a number such as 0712345678."
     );
@@ -109,68 +93,28 @@ function formatPhoneNumber(phoneNumber) {
 }
 
 /* =========================================================
-   TIMESTAMP
-========================================================= */
-
-function getTimestamp() {
-  const now = new Date();
-
-  const year =
-    now.getFullYear();
-
-  const month =
-    String(
-      now.getMonth() + 1
-    ).padStart(2, "0");
-
-  const day =
-    String(
-      now.getDate()
-    ).padStart(2, "0");
-
-  const hours =
-    String(
-      now.getHours()
-    ).padStart(2, "0");
-
-  const minutes =
-    String(
-      now.getMinutes()
-    ).padStart(2, "0");
-
-  const seconds =
-    String(
-      now.getSeconds()
-    ).padStart(2, "0");
-
-  return (
-    `${year}${month}${day}` +
-    `${hours}${minutes}${seconds}`
-  );
-}
-
-/* =========================================================
-   ACCESS TOKEN
+   GET SASAPAY ACCESS TOKEN
 ========================================================= */
 
 async function getAccessToken() {
+
   validateConfig();
 
-  const auth =
+  const credentials =
     Buffer.from(
-      `${CONSUMER_KEY}:${CONSUMER_SECRET}`
+      `${CLIENT_ID}:${CLIENT_SECRET}`
     ).toString("base64");
 
   try {
+
     const response =
       await axios.get(
-        `${API_URL}/oauth/v1/generate?grant_type=client_credentials`,
+        `${SASAPAY_BASE_URL}/oauth/v1/generate?grant_type=client_credentials`,
         {
           headers: {
             Authorization:
-              `Basic ${auth}`
+              `Basic ${credentials}`
           },
-
           timeout: 30000
         }
       );
@@ -179,8 +123,9 @@ async function getAccessToken() {
       !response.data ||
       !response.data.access_token
     ) {
+
       throw new Error(
-        "No access token returned by Safaricom."
+        "SasaPay did not return an access token."
       );
     }
 
@@ -189,19 +134,19 @@ async function getAccessToken() {
   } catch (error) {
 
     console.error(
-      "M-Pesa access token error:",
+      "❌ SasaPay authentication error:",
       error.response?.data ||
       error.message
     );
 
     throw new Error(
-      "Failed to get M-Pesa access token."
+      "Failed to authenticate with SasaPay."
     );
   }
 }
 
 /* =========================================================
-   INITIATE STK PUSH
+   INITIATE PAYMENT
 ========================================================= */
 
 async function initiateSTKPush(
@@ -217,94 +162,26 @@ async function initiateSTKPush(
     await getAccessToken();
 
   const formattedPhone =
-    formatPhoneNumber(
-      phoneNumber
-    );
+    formatPhoneNumber(phoneNumber);
 
   const numericAmount =
-    Math.round(
-      Number(amount)
-    );
+    Math.round(Number(amount));
 
   if (
-    !Number.isFinite(
-      numericAmount
-    ) ||
+    !Number.isFinite(numericAmount) ||
     numericAmount <= 0
   ) {
+
     throw new Error(
       "Payment amount must be greater than zero."
     );
   }
 
-  const timestamp =
-    getTimestamp();
-
-  /*
-    Safaricom password:
-    Base64(
-      BusinessShortCode +
-      Passkey +
-      Timestamp
-    )
-  */
-
-  const password =
-    Buffer.from(
-      `${SHORTCODE}${PASSKEY}${timestamp}`
-    ).toString("base64");
-
-  /*
-    Safaricom allows a limited-length
-    AccountReference.
-
-    Remove special characters.
-  */
-
-  const safeAccountReference =
-    String(
-      accountReference ||
-      "TICKET"
-    )
-      .replace(
-        /[^A-Za-z0-9]/g,
-        ""
-      )
-      .substring(0, 12) ||
-    "TICKET";
-
-  /*
-    TransactionDesc should be short.
-  */
-
-  const safeTransactionDesc =
-    String(
-      transactionDesc ||
-      "Ticket"
-    )
-      .replace(
-        /[^\w\s-]/g,
-        ""
-      )
-      .substring(0, 13) ||
-    "Ticket";
-
-  /*
-    IMPORTANT:
-
-    This MUST be publicly reachable by
-    Safaricom when deployed.
-
-    Locally you can use Cloudflare Tunnel.
-    On Railway this becomes:
-
-    https://your-backend-domain/api/mpesa/callback
-  */
-
   const backendUrl =
     process.env.BACKEND_URL;
 
   if (!backendUrl) {
+
     throw new Error(
       "BACKEND_URL is not configured."
     );
@@ -313,40 +190,48 @@ async function initiateSTKPush(
   const callbackUrl =
     `${backendUrl.replace(/\/$/, "")}/api/mpesa/callback`;
 
+  const reference =
+    String(
+      accountReference || "TICKET"
+    )
+      .replace(
+        /[^A-Za-z0-9]/g,
+        ""
+      )
+      .substring(0, 50);
+
+  const narration =
+    String(
+      transactionDesc || "Ticket Payment"
+    )
+      .substring(0, 50);
+
+  /*
+    SasaPay payment request.
+
+    The customer phone is supplied to SasaPay
+    and SasaPay handles the payment prompt.
+  */
+
   const payload = {
 
-    BusinessShortCode:
-      SHORTCODE,
-
-    Password:
-      password,
-
-    Timestamp:
-      timestamp,
-
-    TransactionType:
-      "CustomerPayBillOnline",
+    MerchantCode:
+      MERCHANT_CODE,
 
     Amount:
       numericAmount,
 
-    PartyA:
-      formattedPhone,
-
-    PartyB:
-      SHORTCODE,
-
     PhoneNumber:
       formattedPhone,
 
-    CallBackURL:
+    TransactionReference:
+      reference,
+
+    CallBackUrl:
       callbackUrl,
 
-    AccountReference:
-      safeAccountReference,
-
-    TransactionDesc:
-      safeTransactionDesc
+    Narration:
+      narration
   };
 
   try {
@@ -356,13 +241,7 @@ async function initiateSTKPush(
     );
 
     console.log(
-      "Sending M-Pesa STK Push"
-    );
-
-    console.log(
-      "Environment:",
-      process.env.MPESA_ENVIRONMENT ||
-      "sandbox"
+      "Sending SasaPay payment request"
     );
 
     console.log(
@@ -376,12 +255,12 @@ async function initiateSTKPush(
     );
 
     console.log(
-      "Account Reference:",
-      safeAccountReference
+      "Reference:",
+      reference
     );
 
     console.log(
-      "Callback URL:",
+      "Callback:",
       callbackUrl
     );
 
@@ -391,10 +270,11 @@ async function initiateSTKPush(
 
     const response =
       await axios.post(
-        `${API_URL}/mpesa/stkpush/v1/processrequest`,
+        `${SASAPAY_BASE_URL}/payments/request-payment`,
         payload,
         {
           headers: {
+
             Authorization:
               `Bearer ${token}`,
 
@@ -407,34 +287,88 @@ async function initiateSTKPush(
       );
 
     console.log(
-      "STK Push response:",
+      "SasaPay payment response:",
       response.data
     );
 
-    return response.data;
+    /*
+      Normalize the response so the rest of
+      your existing application does not need
+      to know the SasaPay response structure.
+    */
+
+    const data =
+      response.data || {};
+
+    const checkoutRequestID =
+      data.CheckoutRequestID ||
+      data.CheckoutRequestId ||
+      data.checkoutRequestID ||
+      data.checkoutRequestId ||
+      data.MerchantRequestID ||
+      data.merchantRequestId;
+
+    if (!checkoutRequestID) {
+
+      throw new Error(
+        data.message ||
+        data.detail ||
+        data.ResponseDescription ||
+        "SasaPay did not return a payment request ID."
+      );
+    }
+
+    return {
+
+      CheckoutRequestID:
+        checkoutRequestID,
+
+      MerchantRequestID:
+        data.MerchantRequestID ||
+        data.merchantRequestId ||
+        "",
+
+      ResponseCode:
+        data.ResponseCode ||
+        data.responseCode ||
+        "0",
+
+      ResponseDescription:
+        data.ResponseDescription ||
+        data.message ||
+        data.detail ||
+        "Payment request sent.",
+
+      CustomerMessage:
+        data.CustomerMessage ||
+        data.message ||
+        "Please check your phone and complete the payment.",
+
+      raw:
+        data
+    };
 
   } catch (error) {
 
     console.error(
-      "STK Push error:",
+      "❌ SasaPay payment error:",
       error.response?.data ||
       error.message
     );
 
     const message =
-      error.response?.data?.errorMessage ||
+      error.response?.data?.message ||
+      error.response?.data?.detail ||
       error.response?.data?.ResponseDescription ||
-      error.response?.data?.error_description ||
-      "M-Pesa payment initiation failed.";
+      error.message ||
+      "SasaPay payment initiation failed.";
 
-    throw new Error(
-      message
-    );
+    throw new Error(message);
   }
 }
 
 /* =========================================================
-   QUERY STK PUSH
+   QUERY PAYMENT STATUS
 ========================================================= */
 
 async function querySTKPushStatus(
@@ -444,6 +378,7 @@ async function querySTKPushStatus(
   validateConfig();
 
   if (!checkoutRequestID) {
+
     throw new Error(
       "Checkout Request ID is required."
     );
@@ -452,37 +387,23 @@ async function querySTKPushStatus(
   const token =
     await getAccessToken();
 
-  const timestamp =
-    getTimestamp();
-
-  const password =
-    Buffer.from(
-      `${SHORTCODE}${PASSKEY}${timestamp}`
-    ).toString("base64");
-
-  const payload = {
-
-    BusinessShortCode:
-      SHORTCODE,
-
-    Password:
-      password,
-
-    Timestamp:
-      timestamp,
-
-    CheckoutRequestID:
-      checkoutRequestID
-  };
-
   try {
 
     const response =
       await axios.post(
-        `${API_URL}/mpesa/stkpushquery/v1/query`,
-        payload,
+        `${SASAPAY_BASE_URL}/api/v2/waas/transactions/status/`,
+        {
+
+          merchantCode:
+            MERCHANT_CODE,
+
+          checkoutRequestId:
+            checkoutRequestID
+
+        },
         {
           headers: {
+
             Authorization:
               `Bearer ${token}`,
 
@@ -495,27 +416,67 @@ async function querySTKPushStatus(
       );
 
     console.log(
-      "STK Query response:",
+      "SasaPay status response:",
       response.data
     );
 
-    return response.data;
+    const responseData =
+      response.data || {};
+
+    const data =
+      responseData.data ||
+      responseData;
+
+    /*
+      Convert SasaPay status into the same
+      structure your existing route expects.
+    */
+
+    return {
+
+      ResultCode:
+        data.ResultCode ??
+        responseData.responseCode ??
+        "",
+
+      ResultDesc:
+        data.ResultDescription ||
+        data.ResultDesc ||
+        responseData.message ||
+        "Payment status received.",
+
+      MpesaReceiptNumber:
+        data.TransactionCode ||
+        data.SasaPayTransactionCode ||
+        null,
+
+      Paid:
+        data.Paid,
+
+      AmountPaid:
+        data.AmountPaid,
+
+      CheckoutRequestID:
+        data.CheckoutRequestId ||
+        checkoutRequestID,
+
+      raw:
+        responseData
+    };
 
   } catch (error) {
 
     console.error(
-      "STK Query error:",
+      "❌ SasaPay status error:",
       error.response?.data ||
       error.message
     );
 
-    const message =
-      error.response?.data?.errorMessage ||
-      error.response?.data?.ResponseDescription ||
-      "Failed to query M-Pesa payment status.";
-
     throw new Error(
-      message
+      error.response?.data?.message ||
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to check SasaPay payment status."
     );
   }
 }
@@ -525,8 +486,12 @@ async function querySTKPushStatus(
 ========================================================= */
 
 module.exports = {
+
   initiateSTKPush,
+
   querySTKPushStatus,
+
   getAccessToken,
+
   formatPhoneNumber
 };

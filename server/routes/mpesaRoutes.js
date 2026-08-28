@@ -1,150 +1,685 @@
-const express = require("express");
-const axios = require("axios");
+﻿const express = require("express");
+
 const router = express.Router();
-const db = require("../config/db"); // Your running Postgres connection helper
 
-const SASAPAY_BASE_URL = process.env.NODE_ENV === "production" 
-  ? "https://sasapay.app" 
-  : "https://sasapay.app";
+const {
+  initiateSTKPush,
+  querySTKPushStatus
+} = require("../services/mpesaService");
 
-/* ==========================================
-   HELPER: GENERATE ACCESS TOKEN (OAUTH 2.0)
-========================================== */
-async function getSasaPayToken() {
-  try {
-    const credentials = Buffer.from(
-      `${process.env.SASAPAY_CLIENT_ID}:${process.env.SASAPAY_CLIENT_SECRET}`
-    ).toString("base64");
+const pool = require("../config/db");
 
-    const response = await axios.get(`${SASAPAY_BASE_URL}/auth/token?grant_type=client_credentials`, {
-      headers: { Authorization: `Basic ${credentials}` },
-    });
+/* =========================================================
+   INITIATE SASAPAY PAYMENT
+========================================================= */
 
-    return response.data.access_token;
-  } catch (error) {
-    console.error("❌ SasaPay OAuth Token Generation Failed:", error.response?.data || error.message);
-    throw new Error("Payment authentication token mismatch error.");
-  }
-}
+router.post(
+  "/stkpush",
+  async (req, res) => {
 
-/* ==========================================
-   ROUTE 1: INITIALIZE STK PUSH (PASSING CLIENT CONTEXT)
-========================================== */
-router.post("/stkpush", async (req, res) => {
-  try {
-    const { phoneNumber, amount, eventId, customerName, customerEmail } = req.body;
+    try {
 
-    if (!phoneNumber || !amount || !eventId || !customerEmail || !customerName) {
-      return res.status(400).json({ success: false, message: "Missing required checkout parameters." });
-    }
+      const {
+        phoneNumber,
+        amount,
+        accountReference,
+        transactionDesc,
+        eventId,
+        idempotencyKey
+      } = req.body;
 
-    // Clean and standardise phone number formatting to 2547XXXXXXXX / 2541XXXXXXXX
-    let formattedPhone = phoneNumber.trim().replace(/^\+/, "");
-    if (formattedPhone.startsWith("0")) {
-      formattedPhone = "254" + formattedPhone.substring(1);
-    }
+      if (
+        !phoneNumber ||
+        amount === undefined ||
+        !accountReference
+      ) {
 
-    /*
-       Create a composite reference tracking string.
-       We separate the variables using underscores so the callback can split them apart later!
-       Format: ORD_[eventId]_[customerName]_[customerEmail]
-    */
-    const cleanEmail = customerEmail.trim().toLowerCase();
-    const cleanName = customerName.trim().replace(/[^a-zA-Z0-9]/g, ""); // Strip spaces/special characters
-    const orderRef = `ORD_${eventId}_${cleanName}_${cleanEmail}`;
-
-    console.log(`🔑 Fetching Token to process prompt for Order metadata string: ${orderRef}...`);
-    const token = await getSasaPayToken();
-
-    // Call SasaPay Checkout API
-    const response = await axios.post(
-      `${SASAPAY_BASE_URL}/payments/request-payment`,
-      {
-        MerchantCode: process.env.SASAPAY_MERCHANT_CODE,
-        Amount: Number(amount),
-        PhoneNumber: formattedPhone,
-        TransactionReference: orderRef.substring(0, 50), // SasaPay max characters safety cap
-        CallBackUrl: `${process.env.BACKEND_URL}/api/mpesa/callback`,
-        Narration: `Ticket Hub Event Buy`
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        return res.status(400).json({
+          success: false,
+          message:
+            "Phone number, amount, and account reference are required."
+        });
       }
-    );
 
-    if (response.data && response.data.status === "Success") {
+      const numericAmount =
+        Number(amount);
+
+      if (
+        !Number.isFinite(numericAmount) ||
+        numericAmount <= 0
+      ) {
+
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid payment amount."
+        });
+      }
+
+      /* =====================================================
+         IDEMPOTENCY
+      ===================================================== */
+
+      if (idempotencyKey) {
+
+        const existing =
+          await pool.query(
+            `
+            SELECT *
+            FROM mpesa_transactions
+            WHERE idempotency_key = $1
+            LIMIT 1
+            `,
+            [
+              String(idempotencyKey)
+            ]
+          );
+
+        if (existing.rows.length > 0) {
+
+          const transaction =
+            existing.rows[0];
+
+          return res.json({
+
+            success: true,
+
+            alreadyExists: true,
+
+            status:
+              transaction.status,
+
+            checkoutRequestID:
+              transaction.checkout_request_id,
+
+            merchantRequestID:
+              transaction.merchant_request_id,
+
+            transaction
+          });
+        }
+      }
+
+      /* =====================================================
+         SEND PAYMENT REQUEST TO SASAPAY
+      ===================================================== */
+
+      const result =
+        await initiateSTKPush(
+          phoneNumber,
+          numericAmount,
+          accountReference,
+          transactionDesc
+        );
+
+      if (
+        !result ||
+        !result.CheckoutRequestID
+      ) {
+
+        console.error(
+          "❌ Invalid SasaPay response:",
+          result
+        );
+
+        return res.status(502).json({
+          success: false,
+          message:
+            "SasaPay did not return a valid payment request."
+        });
+      }
+
+      const checkoutRequestID =
+        result.CheckoutRequestID;
+
+      const merchantRequestID =
+        result.MerchantRequestID || "";
+
+      /* =====================================================
+         SAVE TRANSACTION
+      ===================================================== */
+
+      const insertResult =
+        await pool.query(
+          `
+          INSERT INTO mpesa_transactions
+          (
+            checkout_request_id,
+            merchant_request_id,
+            phone_number,
+            amount,
+            account_reference,
+            transaction_desc,
+            status,
+            result_code,
+            result_desc,
+            event_id,
+            idempotency_key
+          )
+          VALUES
+          (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9,
+            $10,
+            $11
+          )
+          RETURNING *
+          `,
+          [
+
+            checkoutRequestID,
+
+            merchantRequestID,
+
+            String(phoneNumber),
+
+            numericAmount,
+
+            String(accountReference),
+
+            transactionDesc
+              ? String(transactionDesc)
+              : null,
+
+            "PENDING",
+
+            result.ResponseCode
+              ? String(result.ResponseCode)
+              : null,
+
+            result.ResponseDescription
+              ? String(result.ResponseDescription)
+              : null,
+
+            eventId
+              ? Number(eventId)
+              : null,
+
+            idempotencyKey
+              ? String(idempotencyKey)
+              : null
+          ]
+        );
+
       return res.json({
+
         success: true,
-        message: "STK push triggered successfully.",
-        merchantRequestID: response.data.MerchantRequestID,
-        orderReference: orderRef
+
+        message:
+          result.ResponseDescription ||
+          "Payment prompt sent.",
+
+        checkoutRequestID,
+
+        merchantRequestID,
+
+        customerMessage:
+          result.CustomerMessage ||
+          "Please check your phone and complete the payment.",
+
+        transaction:
+          insertResult.rows[0]
       });
-    }
 
-    throw new Error(response.data.message || "SasaPay gateway rejected payload components.");
+    } catch (error) {
 
-  } catch (error) {
-    console.error("❌ STK Push initialization crashed:", error.response?.data || error.message);
-    res.status(500).json({ success: false, message: "Could not trigger M-Pesa automated prompt." });
-  }
-});
-
-/* ==========================================
-   ROUTE 2: CALLBACK WEBHOOK (PARSES AND CREATES TICKET)
-========================================== */
-router.post("/callback", async (req, res) => {
-  try {
-    const { TransactionReference, ResultCode, MpesaReceiptNumber, Amount } = req.body;
-
-    console.log(`📥 Payment callback received for Ref: ${TransactionReference}. ResultCode: ${ResultCode}`);
-
-    // ResultCode 0 means transaction success in Safaricom/SasaPay ecosystems
-    if (Number(ResultCode) === 0) {
-      // Split our composite string back apart into variables: ['ORD', 'eventId', 'name', 'email']
-      const parts = TransactionReference.split("_");
-      const eventId = parseInt(parts[1], 10);
-      const customerName = parts[2] || "TicketHub Buyer";
-      const customerEmail = parts[3] || "buyer@mail.com";
-
-      console.log(`🚀 Payment verified. Generating final Ticket row for: ${customerEmail}`);
-
-      // Fetch the event title first to populate your native ticket history tracking data cleanly
-      const eventCheck = await db.query("SELECT title FROM events WHERE id = $1", [eventId]);
-      const eventTitle = eventCheck.rows[0]?.title || "Event Ticket";
-
-      /* 
-         INSERT ROW IN TICKET TABLE
-         This query matches your system architecture exactly.
-      */
-      const newTicket = await db.query(
-        `INSERT INTO tickets (
-          event_id, 
-          customer_name, 
-          customer_email, 
-          event_title,
-          payment_status, 
-          mpesa_receipt_number, 
-          amount,
-          created_at,
-          updated_at
-         ) VALUES ($1, $2, $3, $4, 'PAID', $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-         RETURNING id`,
-        [eventId, customerName, customerEmail, eventTitle, MpesaReceiptNumber, Number(Amount)]
+      console.error(
+        "❌ SasaPay payment route error:",
+        error
       );
 
-      console.log(`✅ Ticket generated inside PostgreSQL successfully! New Ticket Record ID: ${newTicket.rows[0].id}`);
+      if (error.code === "23505") {
+
+        return res.status(409).json({
+          success: false,
+          message:
+            "This payment request already exists."
+        });
+      }
+
+      return res.status(500).json({
+        success: false,
+        message:
+          error.message ||
+          "Payment initiation failed."
+      });
     }
-
-    // Acknowledge receipt back to SasaPay securely to shut down retry loops
-    res.status(200).json({ status: "ACKNOWLEDGED" });
-
-  } catch (callbackError) {
-    console.error("❌ Webhook processing error:", callbackError.message);
-    res.status(500).send("Webhook handling failure.");
   }
-});
+);
+
+/* =========================================================
+   CHECK PAYMENT STATUS
+========================================================= */
+
+router.get(
+  "/status/:checkoutRequestID",
+  async (req, res) => {
+
+    try {
+
+      const {
+        checkoutRequestID
+      } = req.params;
+
+      if (!checkoutRequestID) {
+
+        return res.status(400).json({
+          success: false,
+          message:
+            "Checkout Request ID is required."
+        });
+      }
+
+      const existingResult =
+        await pool.query(
+          `
+          SELECT *
+          FROM mpesa_transactions
+          WHERE checkout_request_id = $1
+          LIMIT 1
+          `,
+          [
+            checkoutRequestID
+          ]
+        );
+
+      if (existingResult.rows.length === 0) {
+
+        return res.status(404).json({
+          success: false,
+          message:
+            "Payment transaction not found."
+        });
+      }
+
+      const transaction =
+        existingResult.rows[0];
+
+      /* Already successful */
+
+      if (transaction.status === "SUCCESS") {
+
+        return res.json({
+
+          success: true,
+
+          status:
+            "SUCCESS",
+
+          transaction,
+
+          result: {
+
+            ResultCode:
+              "0",
+
+            ResultDesc:
+              transaction.result_desc ||
+              "Payment already confirmed."
+          }
+        });
+      }
+
+      /* Already failed */
+
+      if (transaction.status === "FAILED") {
+
+        return res.json({
+
+          success: true,
+
+          status:
+            "FAILED",
+
+          transaction,
+
+          result: {
+
+            ResultCode:
+              transaction.result_code ||
+              "FAILED",
+
+            ResultDesc:
+              transaction.result_desc ||
+              "Payment failed."
+          }
+        });
+      }
+
+      /* =====================================================
+         ASK SASAPAY
+      ===================================================== */
+
+      const result =
+        await querySTKPushStatus(
+          checkoutRequestID
+        );
+
+      const resultCode =
+        String(
+          result.ResultCode ?? ""
+        );
+
+      const resultDesc =
+        result.ResultDesc || "";
+
+      /* =====================================================
+         SUCCESS
+      ===================================================== */
+
+      if (
+        resultCode === "0" ||
+        result.Paid === true
+      ) {
+
+        const receipt =
+          result.MpesaReceiptNumber ||
+          null;
+
+        await pool.query(
+          `
+          UPDATE mpesa_transactions
+          SET
+            status = 'SUCCESS',
+            transaction_id =
+              COALESCE($1, transaction_id),
+            result_code = '0',
+            result_desc = $2,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE checkout_request_id = $3
+          `,
+          [
+
+            receipt,
+
+            resultDesc ||
+              "Payment successful.",
+
+            checkoutRequestID
+          ]
+        );
+
+        const updated =
+          await pool.query(
+            `
+            SELECT *
+            FROM mpesa_transactions
+            WHERE checkout_request_id = $1
+            LIMIT 1
+            `,
+            [
+              checkoutRequestID
+            ]
+          );
+
+        return res.json({
+
+          success: true,
+
+          status:
+            "SUCCESS",
+
+          transaction:
+            updated.rows[0],
+
+          result
+        });
+      }
+
+      /* =====================================================
+         PENDING
+      ===================================================== */
+
+      return res.json({
+
+        success: true,
+
+        status:
+          "PENDING",
+
+        result
+      });
+
+    } catch (error) {
+
+      console.error(
+        "❌ Payment status route error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          error.message ||
+          "Failed to check payment status."
+      });
+    }
+  }
+);
+
+/* =========================================================
+   SASAPAY CALLBACK
+========================================================= */
+
+router.post(
+  "/callback",
+  async (req, res) => {
+
+    /*
+      Acknowledge immediately.
+    */
+
+    res.status(200).json({
+      ResultCode: 0,
+      ResultDesc: "Accepted"
+    });
+
+    try {
+
+      const data =
+        req.body;
+
+      console.log(
+        "📥 SasaPay callback received:"
+      );
+
+      console.log(
+        JSON.stringify(
+          data,
+          null,
+          2
+        )
+      );
+
+      /*
+        SasaPay callback formats can differ
+        between products.
+
+        We therefore accept the common
+        transaction identifiers.
+      */
+
+      const checkoutRequestID =
+        data.CheckoutRequestID ||
+        data.CheckoutRequestId ||
+        data.checkoutRequestID ||
+        data.checkoutRequestId;
+
+      if (!checkoutRequestID) {
+
+        console.warn(
+          "⚠️ SasaPay callback missing CheckoutRequestID."
+        );
+
+        return;
+      }
+
+      const resultCode =
+        String(
+          data.ResultCode ??
+          data.resultCode ??
+          data.responseCode ??
+          ""
+        );
+
+      const resultDesc =
+        data.ResultDesc ||
+        data.ResultDescription ||
+        data.ResponseDescription ||
+        data.message ||
+        "Payment result received.";
+
+      /* =====================================================
+         SUCCESS
+      ===================================================== */
+
+      if (resultCode === "0") {
+
+        const transactionId =
+          data.SasaPayTransactionCode ||
+          data.SasaPayTransactionID ||
+          data.TransactionCode ||
+          data.MpesaReceiptNumber ||
+          null;
+
+        await pool.query(
+          `
+          UPDATE mpesa_transactions
+          SET
+            status = 'SUCCESS',
+            transaction_id =
+              COALESCE($1, transaction_id),
+            result_code = '0',
+            result_desc = $2,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE checkout_request_id = $3
+          `,
+          [
+
+            transactionId,
+
+            resultDesc,
+
+            checkoutRequestID
+          ]
+        );
+
+        console.log(
+          "✅ SasaPay payment confirmed:",
+          checkoutRequestID
+        );
+
+        return;
+      }
+
+      /* =====================================================
+         FAILED
+      ===================================================== */
+
+      if (resultCode) {
+
+        await pool.query(
+          `
+          UPDATE mpesa_transactions
+          SET
+            status = 'FAILED',
+            result_code = $1,
+            result_desc = $2,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE checkout_request_id = $3
+          AND status = 'PENDING'
+          `,
+          [
+
+            resultCode,
+
+            resultDesc,
+
+            checkoutRequestID
+          ]
+        );
+
+        console.log(
+          "❌ SasaPay payment failed:",
+          checkoutRequestID
+        );
+      }
+
+    } catch (error) {
+
+      console.error(
+        "❌ SasaPay callback processing error:",
+        error
+      );
+    }
+  }
+);
+
+/* =========================================================
+   GET TRANSACTION
+========================================================= */
+
+router.get(
+  "/transaction/:checkoutRequestID",
+  async (req, res) => {
+
+    try {
+
+      const {
+        checkoutRequestID
+      } = req.params;
+
+      const result =
+        await pool.query(
+          `
+          SELECT *
+          FROM mpesa_transactions
+          WHERE checkout_request_id = $1
+          LIMIT 1
+          `,
+          [
+            checkoutRequestID
+          ]
+        );
+
+      if (result.rows.length === 0) {
+
+        return res.status(404).json({
+          success: false,
+          message:
+            "Transaction not found."
+        });
+      }
+
+      return res.json({
+
+        success: true,
+
+        transaction:
+          result.rows[0]
+      });
+
+    } catch (error) {
+
+      console.error(
+        "Get transaction error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Failed to retrieve transaction."
+      });
+    }
+  }
+);
 
 module.exports = router;
