@@ -1,38 +1,25 @@
 {
   "name": "ticket-hub",
+  "private": true,
   "version": "1.0.0",
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server/server.js",
-    "postinstall": "npm run build",
-    "migrate": "node server/scripts/migrate-postgres.js",
-    "migrate:postgres": "node server/scripts/migrate-postgres.js",
-    "migrate:mpesa": "node server/scripts/migrate-mpesa.js"
+    "postinstall": "npm run build"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "^4.0.0",
-    "axios": "^1.19.0",
-    "bcryptjs": "^3.0.3",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
+    "@vitejs/plugin-react": "^5.1.1",
     "html5-qrcode": "^2.3.8",
-    "jsonwebtoken": "^9.0.3",
-    "node-cron": "^4.6.0",
-    "nodemailer": "^9.0.5",
-    "pg": "^8.23.0",
-    "qrcode": "^1.5.4",
-    "qrcode.react": "^4.0.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.14.0"
+    "qrcode.react": "^4.2.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14",
-    "vite": "^4.3.9"
+    "vite": "^8.2.1"
   },
   "engines": {
     "node": "18.x"

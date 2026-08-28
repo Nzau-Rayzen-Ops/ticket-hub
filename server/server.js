@@ -66,6 +66,16 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 /* =========================
+   SERVE REACT FRONTEND ASSETS
+========================= */
+
+// CORRECTED PATH: Jumps out of /server, into /frontend, then grabs compiled files from /dist
+const frontendPath = path.join(__dirname, "..", "frontend", "dist");
+
+// Serves CSS, JS, images, and other compiled frontend assets
+app.use(express.static(frontendPath));
+
+/* =========================
    API HEALTH CHECK
 ========================= */
 
@@ -87,32 +97,23 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/admin", adminRoutes);
 
 /* =========================
-   SERVE REACT FRONTEND
+   REACT ROUTER FALLBACK
 ========================= */
 
-const frontendPath = path.join(__dirname, "..", "dist");
-
-app.use(express.static(frontendPath));
-
-/*
-   React Router fallback.
-   API routes are handled above.
-   Any non-API route is sent to React.
+/* 
+   Any path that doesn't match an asset or API endpoint 
+   is served index.html so React Router can process it client-side.
 */
-
-app.use((req, res, next) => {
+app.get("*", (req, res, next) => {
   if (req.path.startsWith("/api/")) {
     return next();
   }
 
-  res.sendFile(
-    path.join(frontendPath, "index.html"),
-    (err) => {
-      if (err) {
-        next(err);
-      }
+  res.sendFile(path.join(frontendPath, "index.html"), (err) => {
+    if (err) {
+      next(err);
     }
-  );
+  });
 });
 
 /* =========================
@@ -137,9 +138,10 @@ app.use((err, req, res, next) => {
    START SERVER
 ========================= */
 
+// Railway automatically injects the PORT environment variable
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
   console.log("Admin authentication enabled.");
   console.log("Event verification scheduler enabled.");
