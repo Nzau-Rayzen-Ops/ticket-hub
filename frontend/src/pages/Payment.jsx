@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import {
   useLocation,
   useNavigate
@@ -120,7 +120,7 @@ export default function Payment() {
   };
 
   /* =========================
-     CHECK STATUS
+     CHECK PAYMENT STATUS
   ========================= */
 
   const waitForPayment = async (
@@ -176,31 +176,34 @@ export default function Payment() {
             "Payment confirmed! Preparing your ticket..."
           );
 
-          /*
-            IMPORTANT:
-
-            Ticket creation happens AFTER
-            M-Pesa confirmation.
-          */
-
           navigate(
             "/payment/success",
             {
               state: {
+
                 event,
+
                 ticket,
+
                 quantity,
+
                 total,
 
                 customer: {
-                  name: customer.name,
-                  email: customer.email,
-                  phone: formattedPhone
+                  name:
+                    customer.name,
+
+                  email:
+                    customer.email,
+
+                  phone:
+                    formattedPhone
                 },
 
                 idempotencyKey,
 
                 checkoutRequestID
+
               }
             }
           );
@@ -218,22 +221,19 @@ export default function Payment() {
 
           const description =
             data.result?.ResultDesc ||
-            "The M-Pesa payment was not completed.";
+            "The payment was not completed.";
 
           throw new Error(
             description
           );
         }
 
-        /*
-          Still pending.
-
-          Wait 3 seconds before asking
-          Safaricom again.
-        */
+        /* =========================
+           PENDING
+        ========================= */
 
         setPaymentMessage(
-          `Waiting for M-Pesa confirmation... (${attempts}/${maxAttempts})`
+          `Waiting for payment confirmation... (${attempts}/${maxAttempts})`
         );
 
         await new Promise(
@@ -249,19 +249,18 @@ export default function Payment() {
         );
 
         /*
-          If the error came from an actual
-          payment failure, stop.
-
-          Otherwise retry.
+          Retry temporary status-check
+          errors.
         */
+
         if (
           error.message &&
-          !error.message.toLowerCase().includes(
-            "query"
-          ) &&
-          !error.message.toLowerCase().includes(
-            "unable to check"
-          )
+          !error.message
+            .toLowerCase()
+            .includes("query") &&
+          !error.message
+            .toLowerCase()
+            .includes("unable to check")
         ) {
 
           throw error;
@@ -275,7 +274,7 @@ export default function Payment() {
     }
 
     throw new Error(
-      "Payment timed out. Please check your M-Pesa messages before trying again."
+      "Payment timed out. Please check your phone messages before trying again."
     );
   };
 
@@ -292,6 +291,7 @@ export default function Payment() {
     }
 
     setError("");
+
     setPaymentMessage("");
 
     const formattedPhone =
@@ -315,12 +315,22 @@ export default function Payment() {
     try {
 
       /*
-        Account reference must remain short.
+        Short reference used by the
+        payment provider.
       */
+
       const accountReference =
         `TKT${Date.now()
           .toString()
           .slice(-9)}`;
+
+      /*
+        Send payment request to our backend.
+
+        The backend handles SasaPay.
+        The frontend never talks directly
+        to SasaPay.
+      */
 
       const response =
         await fetch(
@@ -334,6 +344,7 @@ export default function Payment() {
             },
 
             body: JSON.stringify({
+
               phoneNumber:
                 formattedPhone,
 
@@ -343,7 +354,14 @@ export default function Payment() {
               accountReference,
 
               transactionDesc:
-                "Ticket Payment"
+                "Ticket Payment",
+
+              eventId:
+                event?.id || null,
+
+              idempotencyKey:
+                idempotencyKey || null
+
             })
           }
         );
@@ -358,7 +376,7 @@ export default function Payment() {
 
         throw new Error(
           data.message ||
-          "Failed to initiate M-Pesa payment."
+          "Failed to initiate payment."
         );
       }
 
@@ -367,17 +385,18 @@ export default function Payment() {
       ) {
 
         throw new Error(
-          "Safaricom did not return a checkout request ID."
+          "Payment provider did not return a checkout request ID."
         );
       }
 
       setPaymentMessage(
-        "?? M-Pesa prompt sent. Check your phone and enter your M-Pesa PIN."
+        "Payment prompt sent. Check your phone and complete the payment."
       );
 
       /*
-        Start polling.
+        Wait for backend confirmation.
       */
+
       await waitForPayment(
         data.checkoutRequestID,
         formattedPhone
@@ -489,16 +508,18 @@ export default function Payment() {
               className="mpesa-button"
               disabled={loading}
             >
+
               {loading
-                ? "Waiting for M-Pesa..."
+                ? "Waiting for payment..."
                 : `Pay KES ${Number(total).toLocaleString()}`}
+
             </button>
 
           </form>
 
           <p className="secure-payment">
             Your payment is securely processed
-            through M-Pesa.
+            through SasaPay.
           </p>
 
         </div>
