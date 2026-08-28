@@ -548,7 +548,7 @@ export default function Scanner() {
 
 
         {/* =========================
-            STEP 2 — CODE ENTRY
+            STEP 2 ï¿½ CODE ENTRY
         ========================= */}
 
         {requiresCode && (

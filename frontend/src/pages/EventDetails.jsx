@@ -124,7 +124,7 @@ export default function EventDetails() {
           <p className="event-category">UPCOMING EVENT</p>
           <h1>{event.title}</h1>
           <p>
-            {event.date} • {event.venue}
+            {event.date} ï¿½ {event.venue}
           </p>
         </div>
       </section>
@@ -247,7 +247,7 @@ export default function EventDetails() {
 
           <div className="checkout-summary">
 
-            <span>Total ({quantity} × {getTicketLabel()})</span>
+            <span>Total ({quantity} ï¿½ {getTicketLabel()})</span>
 
             <strong>
               KES {total.toLocaleString()}
