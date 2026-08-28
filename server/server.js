@@ -7,18 +7,18 @@ const path = require("path");
    LOAD SERVER ENVIRONMENT
 ========================= */
 
-// Natively reads variables from Railway environment configuration globally
-require("dotenv").config();
+// Load server/.env locally.
+// Railway environment variables are also available automatically.
+require("dotenv").config({
+  path: path.join(__dirname, ".env")
+});
 
 const db = require("./config/db");
+const createTables = require("./scripts/create-tables.js");
 
-// Automatically verify and initialize database tables structure at boot phase
-try {
-  console.log("Initializing database tables verification...");
-  require("./scripts/create-tables.js");
-} catch (migError) {
-  console.error("Migration log on initialization:", migError.message);
-}
+/* =========================
+   ROUTES
+========================= */
 
 const ticketRoutes = require("./routes/ticketRoutes");
 const eventRoutes = require("./routes/eventRoutes");
@@ -26,8 +26,9 @@ const mpesaRoutes = require("./routes/mpesaRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const adminRoutes = require("./routes/AdminRoutes");
 
-// Start event verification background jobs safely after database setup
-require("./services/eventScheduler");
+/* =========================
+   APP
+========================= */
 
 const app = express();
 
@@ -49,8 +50,20 @@ if (process.env.FRONTEND_URL) {
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests from the same server, from allowed origins, or matching Railway subdomains
-      if (!origin || allowedOrigins.includes(origin) || origin.includes("railway.app")) {
+
+      // Allow requests with no origin
+      // such as server-to-server requests.
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // Allow configured frontend origins.
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Allow Railway frontend domains.
+      if (origin.includes("railway.app")) {
         return callback(null, true);
       }
 
@@ -58,6 +71,7 @@ app.use(
         new Error("CORS origin not allowed.")
       );
     },
+
     credentials: true
   })
 );
@@ -67,11 +81,16 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 /* =========================
-   SERVE REACT FRONTEND ASSETS
+   SERVE REACT FRONTEND
 ========================= */
 
-// Resolves file system path precisely to compiled frontend static assets location
-const frontendPath = path.join(__dirname, "..", "frontend", "dist");
+const frontendPath = path.join(
+  __dirname,
+  "..",
+  "frontend",
+  "dist"
+);
+
 app.use(express.static(frontendPath));
 
 /* =========================
@@ -99,17 +118,22 @@ app.use("/api/admin", adminRoutes);
    REACT ROUTER FALLBACK
 ========================= */
 
-// Clean wildcard path matching using modern path-to-regexp parsing constraints
 app.get("/*any", (req, res, next) => {
+
   if (req.path.startsWith("/api/")) {
     return next();
   }
 
-  res.sendFile(path.join(frontendPath, "index.html"), (err) => {
-    if (err) {
-      next(err);
+  res.sendFile(
+    path.join(frontendPath, "index.html"),
+    (err) => {
+
+      if (err) {
+        next(err);
+      }
+
     }
-  });
+  );
 });
 
 /* =========================
@@ -117,17 +141,21 @@ app.get("/*any", (req, res, next) => {
 ========================= */
 
 app.use((err, req, res, next) => {
+
   console.error("Server error:", err);
 
   if (err.message === "CORS origin not allowed.") {
+
     return res.status(403).json({
       message: "CORS origin not allowed."
     });
+
   }
 
   res.status(500).json({
     message: "Internal server error."
   });
+
 });
 
 /* =========================
@@ -136,19 +164,110 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log("Admin authentication check systems online.");
-  
-  console.log(
-    `Database Connection Check: ${
-      process.env.DATABASE_URL ? "CONFIGURED" : "MISSING"
-    }`
-  );
-  
-  console.log(
-    `Admin Configured Check: ${
-      process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD ? "YES" : "NO"
-    }`
-  );
-});
+async function startServer() {
+
+  try {
+
+    console.log("========================================");
+    console.log("TicketHub server starting...");
+    console.log("========================================");
+
+    console.log(
+      "Initializing PostgreSQL database tables..."
+    );
+
+    // IMPORTANT:
+    // Wait until all PostgreSQL tables and missing
+    // columns have been created before starting
+    // the HTTP server.
+    await createTables();
+
+    console.log(
+      "✅ PostgreSQL database initialization complete."
+    );
+
+    /* =========================
+       START EVENT SCHEDULER
+    ========================= */
+
+    try {
+
+      require("./services/eventScheduler");
+
+      console.log(
+        "✅ Event verification scheduler started."
+      );
+
+    } catch (schedulerError) {
+
+      console.error(
+        "⚠️ Event scheduler failed to start:",
+        schedulerError.message
+      );
+
+    }
+
+    /* =========================
+       START HTTP SERVER
+    ========================= */
+
+    app.listen(
+      PORT,
+      "0.0.0.0",
+      () => {
+
+        console.log("========================================");
+        console.log(
+          `🚀 Server running on port ${PORT}`
+        );
+        console.log("========================================");
+
+        console.log(
+          "Admin authentication check systems online."
+        );
+
+        console.log(
+          `Database Connection Check: ${
+            process.env.DATABASE_URL
+              ? "CONFIGURED"
+              : "MISSING"
+          }`
+        );
+
+        console.log(
+          `Admin Configured Check: ${
+            process.env.ADMIN_EMAIL &&
+            process.env.ADMIN_PASSWORD
+              ? "YES"
+              : "NO"
+          }`
+        );
+
+      }
+    );
+
+  } catch (error) {
+
+    console.error(
+      "========================================"
+    );
+
+    console.error(
+      "❌ SERVER STARTUP FAILED"
+    );
+
+    console.error(
+      "========================================"
+    );
+
+    console.error(error);
+
+    // Do not start the server if the database
+    // initialization failed.
+    process.exit(1);
+
+  }
+
+}
+
+startServer();
