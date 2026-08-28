@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 export default function Events() {
@@ -9,7 +9,7 @@ export default function Events() {
   useEffect(() => {
     async function loadEvents() {
       try {
-        const response = await fetch("http://localhost:5000/api/events");
+        const response = await fetch("/api/events");
 
         if (!response.ok) {
           throw new Error("Failed to load events.");
@@ -123,7 +123,7 @@ export default function Events() {
                     </strong>
 
                     <span className="view-event">
-                      Select Tickets →
+                      Select Tickets ?
                     </span>
 
                   </div>

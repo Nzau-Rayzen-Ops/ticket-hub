@@ -1,4 +1,4 @@
-﻿import {
+import {
   useLocation,
   useNavigate
 } from "react-router-dom";
@@ -78,7 +78,7 @@ export default function PaymentSuccess() {
 
           const response =
             await fetch(
-              "http://localhost:5000/api/tickets",
+              "/api/tickets",
               {
                 method: "POST",
 
@@ -133,7 +133,7 @@ export default function PaymentSuccess() {
 
             const fallbackResponse =
               await fetch(
-                `http://localhost:5000/api/tickets/lookup?email=${encodeURIComponent(
+                `/api/tickets/lookup?email=${encodeURIComponent(
                   state.customer.email
                 )}&eventId=${encodeURIComponent(
                   state.event.id
@@ -338,7 +338,7 @@ export default function PaymentSuccess() {
               color: "#111"
             }}
           >
-            ⏳
+            ?
           </div>
 
           <h1>
@@ -375,7 +375,7 @@ export default function PaymentSuccess() {
               color: "#c00"
             }}
           >
-            ✗
+            ?
           </div>
 
           <h1>
@@ -435,7 +435,7 @@ export default function PaymentSuccess() {
       <div className="success-card">
 
         <div className="success-icon">
-          ✓
+          ?
         </div>
 
         <p className="success-label">
@@ -533,7 +533,7 @@ export default function PaymentSuccess() {
             cursor: "pointer"
           }}
         >
-          ← Return to Website
+          ? Return to Website
         </button>
 
       </div>

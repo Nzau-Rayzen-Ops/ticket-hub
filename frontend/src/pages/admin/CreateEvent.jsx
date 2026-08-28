@@ -1,4 +1,4 @@
-﻿import {
+import {
   useState
 } from "react";
 
@@ -101,7 +101,7 @@ export default function CreateEvent() {
 
       const response =
         await fetch(
-          "http://localhost:5000/api/events",
+          "/api/events",
           {
 
             method: "POST",
@@ -270,7 +270,7 @@ export default function CreateEvent() {
           to="/"
           className="admin-back"
         >
-          ← Back to website
+          ? Back to website
         </Link>
 
       </aside>

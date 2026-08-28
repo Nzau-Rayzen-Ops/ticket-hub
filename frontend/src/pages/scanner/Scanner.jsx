@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Html5QrcodeScanner,
   Html5Qrcode
@@ -117,12 +117,12 @@ export default function Scanner() {
       }
 
       console.log(
-        "🔎 Sending QR token to server:",
+        "?? Sending QR token to server:",
         token
       );
 
       const response = await fetch(
-        "http://localhost:5000/api/tickets/verify",
+        "/api/tickets/verify",
         {
           method: "POST",
 
@@ -154,7 +154,7 @@ export default function Scanner() {
       }
 
       console.log(
-        "🔎 QR verification response:",
+        "?? QR verification response:",
         data
       );
 
@@ -241,7 +241,7 @@ export default function Scanner() {
       setVerifyingCode(true);
 
       const response = await fetch(
-        "http://localhost:5000/api/tickets/verify-code",
+        "/api/tickets/verify-code",
         {
           method: "POST",
 
@@ -273,7 +273,7 @@ export default function Scanner() {
       }
 
       console.log(
-        "🔐 Verification code response:",
+        "?? Verification code response:",
         data
       );
 
@@ -548,7 +548,7 @@ export default function Scanner() {
 
 
         {/* =========================
-            STEP 2 — CODE ENTRY
+            STEP 2 � CODE ENTRY
         ========================= */}
 
         {requiresCode && (
@@ -565,7 +565,7 @@ export default function Scanner() {
             >
 
               <div className="scan-status-icon">
-                ✓
+                ?
               </div>
 
               <h2>
@@ -718,8 +718,8 @@ export default function Scanner() {
             <div className="scan-status-icon">
 
               {result.valid
-                ? "✓"
-                : "✕"}
+                ? "?"
+                : "?"}
 
             </div>
 

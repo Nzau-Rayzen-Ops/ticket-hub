@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import {
   useLocation,
   useNavigate
@@ -140,7 +140,7 @@ export default function Payment() {
 
         const response =
           await fetch(
-            `http://localhost:5000/api/mpesa/status/${encodeURIComponent(
+            `/api/mpesa/status/${encodeURIComponent(
               checkoutRequestID
             )}`
           );
@@ -324,7 +324,7 @@ export default function Payment() {
 
       const response =
         await fetch(
-          "http://localhost:5000/api/mpesa/stkpush",
+          "/api/mpesa/stkpush",
           {
             method: "POST",
 
@@ -372,7 +372,7 @@ export default function Payment() {
       }
 
       setPaymentMessage(
-        "📲 M-Pesa prompt sent. Check your phone and enter your M-Pesa PIN."
+        "?? M-Pesa prompt sent. Check your phone and enter your M-Pesa PIN."
       );
 
       /*

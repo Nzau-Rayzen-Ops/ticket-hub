@@ -14,7 +14,7 @@ export default function DeletedTickets() {
   const fetchDeletedTickets = async () => {
     try {
       setLoading(true);
-      const response = await fetch("http://localhost:5000/api/tickets/deleted");
+      const response = await fetch("/api/tickets/deleted");
       
       if (!response.ok) {
         throw new Error("Failed to fetch deleted tickets");
@@ -34,7 +34,7 @@ export default function DeletedTickets() {
     
     try {
       setActionLoading(ticketId);
-      const response = await fetch(`http://localhost:5000/api/tickets/${ticketId}/restore`, {
+      const response = await fetch(`/api/tickets/${ticketId}/restore`, {
         method: "PUT"
       });
       
@@ -56,7 +56,7 @@ export default function DeletedTickets() {
     
     try {
       setActionLoading(ticketId);
-      const response = await fetch(`http://localhost:5000/api/tickets/${ticketId}/permanent`, {
+      const response = await fetch(`/api/tickets/${ticketId}/permanent`, {
         method: "DELETE"
       });
       
@@ -80,7 +80,7 @@ export default function DeletedTickets() {
       setLoading(true);
       
       for (const ticket of tickets) {
-        await fetch(`http://localhost:5000/api/tickets/${ticket.ticket_id}/permanent`, {
+        await fetch(`/api/tickets/${ticket.ticket_id}/permanent`, {
           method: "DELETE"
         });
       }

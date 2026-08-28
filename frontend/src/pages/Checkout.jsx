@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 export default function Checkout() {
@@ -181,7 +181,7 @@ export default function Checkout() {
       Generate ONE purchase key.
 
       This key follows the purchase from
-      Checkout → Payment → PaymentSuccess.
+      Checkout ? Payment ? PaymentSuccess.
     */
     const idempotencyKey =
       `purchase-${event.id}-${Date.now()}-${Math.random()

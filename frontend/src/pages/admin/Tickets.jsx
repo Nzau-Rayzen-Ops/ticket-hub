@@ -44,7 +44,7 @@ export default function Tickets() {
 
       const response =
         await fetch(
-          "http://localhost:5000/api/tickets/admin/all",
+          "/api/tickets/admin/all",
           {
             method: "GET",
             credentials: "include"
@@ -123,7 +123,7 @@ export default function Tickets() {
 
       const response =
         await fetch(
-          `http://localhost:5000/api/tickets/${ticketId}/soft`,
+          `/api/tickets/${ticketId}/soft`,
           {
             method: "DELETE",
 

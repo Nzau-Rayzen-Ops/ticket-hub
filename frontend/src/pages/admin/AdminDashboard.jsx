@@ -1,4 +1,4 @@
-Ôªøimport {
+import {
   useEffect,
   useState
 } from "react";
@@ -47,7 +47,7 @@ export default function AdminDashboard() {
         ] = await Promise.all([
 
           fetch(
-            "http://localhost:5000/api/tickets/admin/dashboard",
+            "/api/tickets/admin/dashboard",
             {
               method: "GET",
               credentials:
@@ -56,7 +56,7 @@ export default function AdminDashboard() {
           ),
 
           fetch(
-            "http://localhost:5000/api/tickets/admin/recent",
+            "/api/tickets/admin/recent",
             {
               method: "GET",
               credentials:
@@ -213,7 +213,7 @@ export default function AdminDashboard() {
           to="/"
           className="admin-back"
         >
-          ‚Üê Back to website
+          ? Back to website
         </Link>
 
       </aside>
@@ -261,7 +261,7 @@ export default function AdminDashboard() {
 
             <strong>
               {loading
-                ? "‚Äî"
+                ? "ó"
                 : stats.totalTickets}
             </strong>
 
@@ -281,7 +281,7 @@ export default function AdminDashboard() {
             <strong>
 
               {loading
-                ? "‚Äî"
+                ? "ó"
                 : `KSh ${Number(
                     stats.totalRevenue ||
                       0
@@ -304,7 +304,7 @@ export default function AdminDashboard() {
 
             <strong>
               {loading
-                ? "‚Äî"
+                ? "ó"
                 : stats.validTickets}
             </strong>
 
@@ -323,7 +323,7 @@ export default function AdminDashboard() {
 
             <strong>
               {loading
-                ? "‚Äî"
+                ? "ó"
                 : stats.usedTickets}
             </strong>
 
@@ -354,7 +354,7 @@ export default function AdminDashboard() {
 
 
             <Link to="/admin/tickets">
-              View all ‚Üí
+              View all ?
             </Link>
 
           </div>
@@ -375,7 +375,7 @@ export default function AdminDashboard() {
             <div className="admin-empty">
 
               <div className="admin-empty-icon">
-                üéü
+                ??
               </div>
 
               <h3>
@@ -467,7 +467,7 @@ export default function AdminDashboard() {
                           ticket.ticket_type
                         }
 
-                        {" √ó "}
+                        {" ◊ "}
 
                         {
                           ticket.quantity

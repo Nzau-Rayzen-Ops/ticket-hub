@@ -53,7 +53,7 @@ export default function AdminLogin() {
 
       const response =
         await fetch(
-          "http://localhost:5000/api/admin/login",
+          "/api/admin/login",
           {
             method: "POST",
 
@@ -97,7 +97,7 @@ export default function AdminLogin() {
 
       const sessionResponse =
         await fetch(
-          "http://localhost:5000/api/admin/session",
+          "/api/admin/session",
           {
             method: "GET",
             credentials: "include"

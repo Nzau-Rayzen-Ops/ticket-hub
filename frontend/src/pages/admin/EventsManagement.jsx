@@ -1,4 +1,4 @@
-﻿import {
+import {
   useEffect,
   useState
 } from "react";
@@ -38,7 +38,7 @@ export default function EventsManagement() {
 
       const response =
         await fetch(
-          "http://localhost:5000/api/events",
+          "/api/events",
           {
             method: "GET",
             credentials: "include"
@@ -112,7 +112,7 @@ export default function EventsManagement() {
 
       const response =
         await fetch(
-          `http://localhost:5000/api/events/${event.id}`,
+          `/api/events/${event.id}`,
           {
             method: "DELETE",
 
@@ -209,7 +209,7 @@ export default function EventsManagement() {
           to="/"
           className="admin-back"
         >
-          ← Back to website
+          ? Back to website
         </Link>
 
       </aside>
@@ -297,7 +297,7 @@ export default function EventsManagement() {
             <div className="admin-empty">
 
               <div className="admin-empty-icon">
-                📅
+                ??
               </div>
 
               <h3>
@@ -351,7 +351,7 @@ export default function EventsManagement() {
                     </strong>
 
                     <span>
-                      {event.time} · {event.venue}
+                      {event.time} � {event.venue}
                     </span>
 
                   </div>

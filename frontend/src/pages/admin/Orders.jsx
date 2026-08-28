@@ -20,7 +20,7 @@ export default function Orders() {
           /api/orders admin endpoint.
         */
         const response = await fetch(
-          "http://localhost:5000/api/tickets/admin/all",
+          "/api/tickets/admin/all",
           {
             method: "GET",
             credentials: "include"

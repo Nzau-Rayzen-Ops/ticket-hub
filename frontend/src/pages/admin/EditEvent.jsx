@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Link,
   useNavigate,
@@ -41,7 +41,7 @@ export default function EditEvent() {
         setError("");
 
         const response = await fetch(
-          `http://localhost:5000/api/events/${id}`,
+          `/api/events/${id}`,
           {
             method: "GET",
             credentials: "include"
@@ -141,7 +141,7 @@ export default function EditEvent() {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/api/events/${id}`,
+        `/api/events/${id}`,
         {
           method: "PUT",
 
@@ -290,7 +290,7 @@ export default function EditEvent() {
             to="/"
             className="admin-back"
           >
-            ← Back to website
+            ? Back to website
           </Link>
 
         </aside>
@@ -367,7 +367,7 @@ export default function EditEvent() {
             to="/"
             className="admin-back"
           >
-            ← Back to website
+            ? Back to website
           </Link>
 
         </aside>
@@ -453,7 +453,7 @@ export default function EditEvent() {
           to="/"
           className="admin-back"
         >
-          ← Back to website
+          ? Back to website
         </Link>
 
       </aside>
@@ -734,7 +734,7 @@ export default function EditEvent() {
               <div className="admin-form-group">
 
                 <label htmlFor="couple_price">
-                  Couple Ticket — 2 People (KSh)
+                  Couple Ticket � 2 People (KSh)
                 </label>
 
                 <input

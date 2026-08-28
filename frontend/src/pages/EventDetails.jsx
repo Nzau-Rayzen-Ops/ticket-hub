@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
 export default function EventDetails() {
@@ -9,7 +9,7 @@ export default function EventDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // ⬇️⬇️⬇️ ADD THIS - Track which ticket type is selected ⬇️⬇️⬇️
+  // ?????? ADD THIS - Track which ticket type is selected ??????
   const [selectedTicketType, setSelectedTicketType] = useState("single");
   const [quantity, setQuantity] = useState(1);
 
@@ -20,7 +20,7 @@ export default function EventDetails() {
         setError("");
 
         const response = await fetch(
-          `http://localhost:5000/api/events/${id}`
+          `/api/events/${id}`
         );
 
         if (!response.ok) {
@@ -53,7 +53,7 @@ export default function EventDetails() {
     }
   };
 
-  // ⬇️⬇️⬇️ ADD THESE HELPER FUNCTIONS ⬇️⬇️⬇️
+  // ?????? ADD THESE HELPER FUNCTIONS ??????
   const getTicketPrice = () => {
     if (!event) return 0;
     
@@ -124,7 +124,7 @@ export default function EventDetails() {
           <p className="event-category">UPCOMING EVENT</p>
           <h1>{event.title}</h1>
           <p>
-            {event.date} • {event.venue}
+            {event.date} � {event.venue}
           </p>
         </div>
       </section>
@@ -171,7 +171,7 @@ export default function EventDetails() {
 
           <div className="ticket-types">
 
-            {/* ⬇️⬇️⬇️ REPLACE THE BUTTON WITH THESE ⬇️⬇️⬇️ */}
+            {/* ?????? REPLACE THE BUTTON WITH THESE ?????? */}
             
             {/* Single Ticket - Always show */}
             <button
@@ -179,7 +179,7 @@ export default function EventDetails() {
               type="button"
               onClick={() => setSelectedTicketType("single")}
             >
-              <span>🎫 Single Ticket</span>
+              <span>?? Single Ticket</span>
               <strong>
                 KES {(event.single_price || event.price).toLocaleString()}
               </strong>
@@ -192,7 +192,7 @@ export default function EventDetails() {
                 type="button"
                 onClick={() => setSelectedTicketType("couple")}
               >
-                <span>👫 Couple (2 People)</span>
+                <span>?? Couple (2 People)</span>
                 <strong>
                   KES {event.couple_price.toLocaleString()}
                 </strong>
@@ -206,7 +206,7 @@ export default function EventDetails() {
                 type="button"
                 onClick={() => setSelectedTicketType("group3")}
               >
-                <span>👥 Group of 3</span>
+                <span>?? Group of 3</span>
                 <strong>
                   KES {event.group3_price.toLocaleString()}
                 </strong>
@@ -225,7 +225,7 @@ export default function EventDetails() {
                 type="button"
                 onClick={decreaseQuantity}
               >
-                −
+                -
               </button>
 
               <strong>{quantity}</strong>
@@ -247,7 +247,7 @@ export default function EventDetails() {
 
           <div className="checkout-summary">
 
-            <span>Total ({quantity} × {getTicketLabel()})</span>
+            <span>Total ({quantity} � {getTicketLabel()})</span>
 
             <strong>
               KES {total.toLocaleString()}
