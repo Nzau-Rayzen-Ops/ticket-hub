@@ -73,36 +73,67 @@ function validateConfig() {
 
 function formatPhoneNumber(phoneNumber) {
 
-  if (!phoneNumber) {
+  if (
+    phoneNumber === null ||
+    phoneNumber === undefined ||
+    String(phoneNumber).trim() === ""
+  ) {
     throw new Error("Phone number is required.");
   }
 
   let phone =
     String(phoneNumber)
-      .replace(/\D/g, "");
+      .trim()
+      .replace(/[\s\-().]/g, "")
+      .replace(/^\+/, "");
 
-  if (phone.startsWith("0")) {
+  /*
+    Accept:
+
+      0758157516
+      254758157516
+      +254758157516
+      758157516
+
+    Normalize everything to:
+
+      254758157516
+  */
+
+  if (/^0[17][0-9]{8}$/.test(phone)) {
 
     phone =
       "254" +
       phone.substring(1);
 
-  } else if (
-    phone.startsWith("7") ||
-    phone.startsWith("1")
-  ) {
+  } else if (/^[17][0-9]{8}$/.test(phone)) {
 
     phone =
       "254" +
       phone;
-  }
 
-  if (!/^254[0-9]{9}$/.test(phone)) {
+  } else if (/^254[17][0-9]{8}$/.test(phone)) {
+
+    // Already in international Kenyan format.
+
+  } else {
 
     throw new Error(
       "Invalid Kenyan phone number. Use a number such as 0712345678."
     );
   }
+
+  if (!/^254[17][0-9]{8}$/.test(phone)) {
+
+    throw new Error(
+      "Invalid Kenyan phone number. Use a number such as 0712345678."
+    );
+  }
+
+  console.log(
+    "📱 Phone normalized:",
+    phone
+  );
 
   return phone;
 }
@@ -630,3 +661,4 @@ module.exports = {
 
   formatPhoneNumber
 };
+
