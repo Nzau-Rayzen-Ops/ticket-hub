@@ -220,14 +220,13 @@ router.post(
       );
 
       const result =
-        await initiateSTKPush({
+        await initiateSTKPush(
           phoneNumber,
           amount,
           accountReference,
-          transactionDesc:
-            transactionDesc ||
+          transactionDesc ||
             "TicketHub Payment"
-        });
+        );
 
       console.log(
         "✅ SasaPay STK Push response:",
@@ -805,3 +804,4 @@ router.post(
 );
 
 module.exports = router;
+
