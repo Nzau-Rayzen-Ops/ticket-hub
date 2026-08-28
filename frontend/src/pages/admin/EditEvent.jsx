@@ -734,7 +734,7 @@ export default function EditEvent() {
               <div className="admin-form-group">
 
                 <label htmlFor="couple_price">
-                  Couple Ticket — 2 People (KSh)
+                  Couple Ticket ï¿½ 2 People (KSh)
                 </label>
 
                 <input

@@ -351,7 +351,7 @@ export default function EventsManagement() {
                     </strong>
 
                     <span>
-                      {event.time} · {event.venue}
+                      {event.time} ï¿½ {event.venue}
                     </span>
 
                   </div>

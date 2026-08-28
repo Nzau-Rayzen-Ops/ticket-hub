@@ -261,7 +261,7 @@ export default function AdminDashboard() {
 
             <strong>
               {loading
-                ? "—"
+                ? "ï¿½"
                 : stats.totalTickets}
             </strong>
 
@@ -281,7 +281,7 @@ export default function AdminDashboard() {
             <strong>
 
               {loading
-                ? "—"
+                ? "ï¿½"
                 : `KSh ${Number(
                     stats.totalRevenue ||
                       0
@@ -304,7 +304,7 @@ export default function AdminDashboard() {
 
             <strong>
               {loading
-                ? "—"
+                ? "ï¿½"
                 : stats.validTickets}
             </strong>
 
@@ -323,7 +323,7 @@ export default function AdminDashboard() {
 
             <strong>
               {loading
-                ? "—"
+                ? "ï¿½"
                 : stats.usedTickets}
             </strong>
 
@@ -467,7 +467,7 @@ export default function AdminDashboard() {
                           ticket.ticket_type
                         }
 
-                        {" × "}
+                        {" ï¿½ "}
 
                         {
                           ticket.quantity
