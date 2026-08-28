@@ -122,6 +122,8 @@ async function createTables() {
 
         result_desc TEXT,
 
+        transaction_desc VARCHAR(255),
+
         event_id INTEGER,
 
         idempotency_key VARCHAR(255),
@@ -137,6 +139,59 @@ async function createTables() {
     // ============================================================
     // ADD MISSING COLUMNS TO EXISTING TABLES
     // ============================================================
+
+    // ----------------------------
+    // EVENTS
+    // ----------------------------
+
+    await client.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS description TEXT;
+    `);
+
+    await client.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS total_tickets INTEGER DEFAULT 0;
+    `);
+
+    await client.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS available_tickets INTEGER DEFAULT 0;
+    `);
+
+    await client.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS single_price NUMERIC(12,2);
+    `);
+
+    await client.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS couple_price NUMERIC(12,2);
+    `);
+
+    await client.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS group3_price NUMERIC(12,2);
+    `);
+
+    await client.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS early_bird_enabled BOOLEAN DEFAULT FALSE;
+    `);
+
+    await client.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS early_bird_single_price NUMERIC(12,2);
+    `);
+
+    await client.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS early_bird_expiry TIMESTAMP;
+    `);
+
+    // ----------------------------
+    // TICKETS
+    // ----------------------------
 
     await client.query(`
       ALTER TABLE tickets
@@ -171,6 +226,56 @@ async function createTables() {
     await client.query(`
       ALTER TABLE tickets
       ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP NULL;
+    `);
+
+    // ----------------------------
+    // M-PESA TRANSACTIONS
+    // ----------------------------
+
+    await client.query(`
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS merchant_request_id VARCHAR(255);
+    `);
+
+    await client.query(`
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS phone_number VARCHAR(50);
+    `);
+
+    await client.query(`
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS account_reference VARCHAR(255);
+    `);
+
+    await client.query(`
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS result_code VARCHAR(50);
+    `);
+
+    await client.query(`
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS result_desc TEXT;
+    `);
+
+    await client.query(`
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS transaction_desc VARCHAR(255);
+    `);
+
+    await client.query(`
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS event_id INTEGER;
+    `);
+
+    await client.query(`
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(255);
+    `);
+
+    await client.query(`
+      ALTER TABLE mpesa_transactions
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP
+      DEFAULT CURRENT_TIMESTAMP;
     `);
 
     // ============================================================
@@ -220,6 +325,13 @@ async function createTables() {
       ON mpesa_transactions(checkout_request_id);
     `);
 
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS
+      idx_mpesa_idempotency_key
+      ON mpesa_transactions(idempotency_key)
+      WHERE idempotency_key IS NOT NULL;
+    `);
+
     // ============================================================
     // COMMIT
     // ============================================================
@@ -230,6 +342,7 @@ async function createTables() {
     console.log("✅ Events table ready.");
     console.log("✅ Tickets table ready.");
     console.log("✅ M-Pesa transactions table ready.");
+    console.log("✅ transaction_desc column verified.");
     console.log("✅ Verification columns ready.");
     console.log("🎉 Database setup complete!");
 
