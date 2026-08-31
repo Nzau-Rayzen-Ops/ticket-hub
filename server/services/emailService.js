@@ -1,27 +1,36 @@
-﻿const dns = require("dns");
-
-dns.setDefaultResultOrder("ipv4first");
-
-const nodemailer = require("nodemailer");
+﻿const { Resend } = require("resend");
 const QRCode = require("qrcode");
 
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD
-  }
-});
+/* =========================
+   RESEND CONFIGURATION
+========================= */
+
+if (!process.env.RESEND_API_KEY) {
+  console.warn(
+    "RESEND_API_KEY is not configured. Email sending will fail until it is added to Railway."
+  );
+}
+
+const resend = new Resend(
+  process.env.RESEND_API_KEY
+);
+
+const EMAIL_FROM =
+  process.env.EMAIL_FROM ||
+  process.env.EMAIL_USER ||
+  "onboarding@resend.dev";
+
 
 /* =========================
    SEND TICKET EMAIL
 ========================= */
 
 async function sendTicketEmail(ticket) {
+
   if (!ticket.qrToken) {
-    throw new Error("QR token is missing.");
+    throw new Error(
+      "QR token is missing."
+    );
   }
 
   const qrData = JSON.stringify({
@@ -29,16 +38,24 @@ async function sendTicketEmail(ticket) {
     token: ticket.qrToken
   });
 
-  const qrBuffer = await QRCode.toBuffer(qrData, {
-    type: "png",
-    width: 300,
-    margin: 2,
-    errorCorrectionLevel: "H"
-  });
+  const qrBuffer =
+    await QRCode.toBuffer(
+      qrData,
+      {
+        type: "png",
+        width: 300,
+        margin: 2,
+        errorCorrectionLevel: "H"
+      }
+    );
 
   const mailOptions = {
-    from: process.env.EMAIL_USER,
-    to: ticket.customer_email,
+
+    from: EMAIL_FROM,
+
+    to: [
+      ticket.customer_email
+    ],
 
     subject:
       "Your Ticket - " +
@@ -160,15 +177,45 @@ async function sendTicketEmail(ticket) {
 
     attachments: [
       {
-        filename: "ticket-qr.png",
-        content: qrBuffer,
-        cid: "ticket-qr"
+        filename:
+          "ticket-qr.png",
+
+        content:
+          qrBuffer.toString("base64"),
+
+        contentId:
+          "ticket-qr"
       }
     ]
   };
 
-  return transporter.sendMail(mailOptions);
+  const {
+    data,
+    error
+  } = await resend.emails.send(
+    mailOptions
+  );
+
+  if (error) {
+
+    console.error(
+      "Resend ticket email error:",
+      error
+    );
+
+    throw new Error(
+      error.message ||
+      "Failed to send ticket email."
+    );
+  }
+
+  console.log(
+    `Ticket email sent successfully. Resend ID: ${data?.id || "unknown"}`
+  );
+
+  return data;
 }
+
 
 /* =========================
    SEND EVENT-DAY CODE
@@ -178,10 +225,14 @@ async function sendVerificationCodeEmail(
   ticket,
   verificationCode
 ) {
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
 
-    to: ticket.customer_email,
+  const mailOptions = {
+
+    from: EMAIL_FROM,
+
+    to: [
+      ticket.customer_email
+    ],
 
     subject:
       "Your Gala Entry Verification Code - " +
@@ -250,9 +301,13 @@ async function sendVerificationCodeEmail(
           </p>
 
           <p>
-            <strong>1. Your ticket QR code</strong>
+            <strong>
+              1. Your ticket QR code
+            </strong>
             <br>
-            <strong>2. This 6-digit code</strong>
+            <strong>
+              2. This 6-digit code
+            </strong>
           </p>
 
           <p>
@@ -283,11 +338,39 @@ async function sendVerificationCodeEmail(
     `
   };
 
-  return transporter.sendMail(mailOptions);
+  const {
+    data,
+    error
+  } = await resend.emails.send(
+    mailOptions
+  );
+
+  if (error) {
+
+    console.error(
+      "Resend verification email error:",
+      error
+    );
+
+    throw new Error(
+      error.message ||
+      "Failed to send verification code email."
+    );
+  }
+
+  console.log(
+    `Verification code email sent successfully. Resend ID: ${data?.id || "unknown"}`
+  );
+
+  return data;
 }
+
+
+/* =========================
+   EXPORTS
+========================= */
 
 module.exports = {
   sendTicketEmail,
   sendVerificationCodeEmail
 };
-
