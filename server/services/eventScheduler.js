@@ -1,47 +1,134 @@
-const cron = require("node-cron");
+﻿const cron = require("node-cron");
+
+const pool = require("../config/db");
 
 const {
-  generateEventVerificationCodes
+  generateCodeForEvent
 } = require("./verificationService");
 
 
 /* =========================
-   RUN VERIFICATION JOB
+   TIMEZONE
 ========================= */
 
-async function runVerificationJob(
-  source
-) {
+const TIMEZONE = "Africa/Nairobi";
 
-  try {
 
-    console.log(
-      `🎟️ Running verification code job: ${source}`
-    );
+/* =========================
+   GET NAIROBI DATE
+========================= */
 
-    await generateEventVerificationCodes();
+async function getNairobiDate() {
 
-    console.log(
-      "✅ Verification code job completed."
-    );
+  const result =
+    await pool.query(`
+      SELECT
+        TO_CHAR(
+          CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Nairobi',
+          'YYYY-MM-DD'
+        ) AS today
+    `);
 
-  } catch (error) {
-
-    console.error(
-      "❌ Verification code job failed:",
-      error
-    );
-
-    /*
-      IMPORTANT:
-      Do NOT crash the entire server.
-    */
-  }
+  return result.rows[0].today;
 }
 
 
 /* =========================
-   DAILY 10:00 AM
+   RUN DAILY JOB
+========================= */
+
+async function runDailyVerificationJob() {
+
+  try {
+
+    const today =
+      await getNairobiDate();
+
+    console.log(
+      `Checking verification codes for ${today}...`
+    );
+
+
+    const result =
+      await pool.query(
+        `
+        SELECT
+          id,
+          title,
+          date,
+          status
+        FROM events
+        WHERE date = $1::date
+        AND status != 'ARCHIVED'
+        ORDER BY id
+        `,
+        [today]
+      );
+
+
+    if (result.rows.length === 0) {
+
+      console.log(
+        `No events scheduled for ${today}.`
+      );
+
+      return;
+
+    }
+
+
+    console.log(
+      `Found ${result.rows.length} event(s) for ${today}.`
+    );
+
+
+    for (
+      const event of result.rows
+    ) {
+
+      try {
+
+        console.log(
+          `Generating verification code for event ${event.id}: ${event.title}`
+        );
+
+
+        await generateCodeForEvent(
+          event
+        );
+
+
+        console.log(
+          `Verification code generation completed for event ${event.id}.`
+        );
+
+
+      } catch (error) {
+
+        console.error(
+          `Failed to generate verification code for event ${event.id}:`,
+          error
+        );
+
+      }
+
+    }
+
+
+  } catch (error) {
+
+    console.error(
+      "Daily verification job failed:",
+      error
+    );
+
+  }
+
+}
+
+
+/* =========================
+   DAILY CRON
 ========================= */
 
 cron.schedule(
@@ -49,79 +136,52 @@ cron.schedule(
 
   async () => {
 
-    await runVerificationJob(
-      "daily 10:00 AM Nairobi job"
+    console.log(
+      "========================================"
     );
+
+    console.log(
+      "Daily verification scheduler triggered."
+    );
+
+    console.log(
+      `Timezone: ${TIMEZONE}`
+    );
+
+    console.log(
+      "========================================"
+    );
+
+
+    await runDailyVerificationJob();
 
   },
 
   {
-    timezone:
-      "Africa/Nairobi"
+    timezone: TIMEZONE
   }
-);
 
-
-console.log(
-  "⏰ Event verification scheduler started."
 );
 
 
 /* =========================
-   STARTUP CHECK
+   INITIALIZATION
 ========================= */
 
-setTimeout(
-  async () => {
-
-    try {
-
-      const now =
-        new Date();
-
-
-      const hourString =
-        new Intl.DateTimeFormat(
-          "en-US",
-          {
-            timeZone:
-              "Africa/Nairobi",
-
-            hour:
-              "2-digit",
-
-            hour12:
-              false
-          }
-        ).format(now);
-
-
-      const hour =
-        Number(hourString);
-
-
-      if (hour >= 10) {
-
-        await runVerificationJob(
-          "server startup after 10 AM"
-        );
-
-      } else {
-
-        console.log(
-          "ℹ️ Server started before 10 AM. Waiting for scheduled job."
-        );
-      }
-
-    } catch (error) {
-
-      console.error(
-        "❌ Startup verification check failed:",
-        error
-      );
-
-    }
-
-  },
-  5000
+console.log(
+  `Event verification scheduler initialized. Daily job: 10:00 AM ${TIMEZONE}.`
 );
+
+
+/* =========================
+   EXPORTS
+========================= */
+
+module.exports = {
+
+  runDailyVerificationJob,
+
+  getNairobiDate
+
+};
+

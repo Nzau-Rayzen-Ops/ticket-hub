@@ -36,18 +36,62 @@ function getNairobiDate() {
 }
 
 /* =========================
+   NAIROBI END OF DAY
+========================= */
+
+function getNairobiEndOfDay() {
+  const now = new Date();
+
+  const parts = new Intl.DateTimeFormat(
+    "en-US",
+    {
+      timeZone: "Africa/Nairobi",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }
+  ).formatToParts(now);
+
+  const values = {};
+
+  for (const part of parts) {
+    if (part.type !== "literal") {
+      values[part.type] = part.value;
+    }
+  }
+
+  /*
+    Africa/Nairobi is UTC+3 and does not use daylight saving time.
+
+    23:59:59.999 Nairobi
+    =
+    20:59:59.999 UTC
+  */
+
+  return new Date(
+    Date.UTC(
+      Number(values.year),
+      Number(values.month) - 1,
+      Number(values.day),
+      20,
+      59,
+      59,
+      999
+    )
+  );
+}
+
+/* =========================
    GENERATE EVENT CODES
 ========================= */
 
 async function generateEventVerificationCodes() {
   const today = getNairobiDate();
 
-  console.log(`🔐 Checking verification codes for ${today}...`);
+  console.log(
+    `Checking verification codes for ${today}...`
+  );
 
-  /*
-    Find today's events that have paid tickets.
-    FIXED: Removed the text casting rule. Both columns are evaluated strictly as Integers.
-  */
   try {
     const eventResult = await pool.query(
       `
@@ -66,19 +110,36 @@ async function generateEventVerificationCodes() {
     );
 
     if (eventResult.rows.length === 0) {
-      console.log("ℹ️ No events with paid tickets found for today.");
+      console.log(
+        "No events with paid tickets found for today."
+      );
+
       return;
     }
 
     for (const event of eventResult.rows) {
+
       try {
+
         await generateCodeForEvent(event);
+
       } catch (error) {
-        console.error(`❌ Failed generating code for event ${event.id}:`, error);
+
+        console.error(
+          `Failed generating code for event ${event.id}:`,
+          error
+        );
+
       }
     }
+
   } catch (globalQueryError) {
-    console.error("❌ Fatal scheduler query mismatch error encountered:", globalQueryError.message);
+
+    console.error(
+      "Fatal scheduler query mismatch error encountered:",
+      globalQueryError.message
+    );
+
   }
 }
 
@@ -87,125 +148,200 @@ async function generateEventVerificationCodes() {
 ========================= */
 
 async function generateCodeForEvent(event) {
+
   const client = await pool.connect();
 
   try {
+
     await client.query("BEGIN");
 
-    /*
-      Check whether this event already has a valid generated code.
-      FIXED: Ensured event.id is parsed strictly as a proper integer scalar parameter
-    */
-    const eventIdInt = parseInt(event.id, 10);
+    const eventIdInt =
+      parseInt(event.id, 10);
 
-    const existingResult = await client.query(
-      `
-      SELECT
-        verification_code_hash,
-        verification_code_expires_at
-      FROM tickets
-      WHERE event_id = $1
-      AND payment_status = 'PAID'
-      AND verification_code_hash IS NOT NULL
-      AND verification_code_expires_at IS NOT NULL
-      LIMIT 1
-      `,
-      [eventIdInt]
-    );
+    if (Number.isNaN(eventIdInt)) {
 
-    const existing = existingResult.rows[0];
+      throw new Error(
+        `Invalid event ID: ${event.id}`
+      );
 
-    if (existing) {
-      const expiresAt = new Date(existing.verification_code_expires_at);
-
-      if (expiresAt > new Date()) {
-        await client.query("COMMIT");
-        console.log(`ℹ️ Verification code already exists for event ${event.id}.`);
-        return;
-      }
     }
 
     /* =========================
-       GENERATE CODE
+       CHECK EXISTING CODE
     ========================= */
 
-    const code = generateCode();
-    const codeHash = hashValue(code);
+    const existingResult =
+      await client.query(
+        `
+        SELECT
+          verification_code_hash,
+          verification_code_expires_at
+        FROM tickets
+        WHERE event_id = $1
+        AND payment_status = 'PAID'
+        AND deleted_at IS NULL
+        AND verification_code_hash IS NOT NULL
+        AND verification_code_expires_at IS NOT NULL
+        LIMIT 1
+        `,
+        [eventIdInt]
+      );
 
-    const expiry = new Date();
-    expiry.setHours(23, 59, 59, 999);
+    const existing =
+      existingResult.rows[0];
 
-    /*
-      Store code on every paid ticket belonging to today's event.
-    */
-    const updateResult = await client.query(
-      `
-      UPDATE tickets
-      SET
-        verification_code_hash = $1,
-        verification_code_expires_at = $2,
-        verification_attempts = 0,
-        verification_code_sent_at = NULL,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE event_id = $3
-      AND payment_status = 'PAID'
-      AND deleted_at IS NULL
-      `,
-      [codeHash, expiry, eventIdInt]
-    );
+    if (existing) {
+
+      const expiresAt =
+        new Date(
+          existing.verification_code_expires_at
+        );
+
+      if (expiresAt > new Date()) {
+
+        await client.query("COMMIT");
+
+        console.log(
+          `Verification code already exists for event ${eventIdInt}.`
+        );
+
+        return;
+
+      }
+
+    }
+
+    /* =========================
+       GENERATE NEW CODE
+    ========================= */
+
+    const code =
+      generateCode();
+
+    const codeHash =
+      hashValue(code);
+
+    const expiry =
+      getNairobiEndOfDay();
+
+    /* =========================
+       STORE HASH
+    ========================= */
+
+    const updateResult =
+      await client.query(
+        `
+        UPDATE tickets
+        SET
+          verification_code_hash = $1,
+          verification_code_expires_at = $2,
+          verification_attempts = 0,
+          verification_code_sent_at = NULL,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE event_id = $3
+        AND payment_status = 'PAID'
+        AND deleted_at IS NULL
+        `,
+        [
+          codeHash,
+          expiry,
+          eventIdInt
+        ]
+      );
 
     await client.query("COMMIT");
 
-    console.log(`✅ Generated verification code for event ${event.id}. Tickets updated: ${updateResult.rowCount}`);
-
-    /* =========================
-       SEND EMAILS
-    ========================= */
-
-    const ticketResult = await pool.query(
-      `
-      SELECT
-        id,
-        customer_name,
-        customer_email,
-        event_title
-      FROM tickets
-      WHERE event_id = $1
-      AND payment_status = 'PAID'
-      AND deleted_at IS NULL
-      `,
-      [eventIdInt]
+    console.log(
+      `Generated verification code for event ${eventIdInt}. Tickets updated: ${updateResult.rowCount}`
     );
 
-    for (const ticket of ticketResult.rows) {
-      try {
-        await sendVerificationCodeEmail(ticket, code);
+    console.log(
+      `Verification code expires at: ${expiry.toISOString()}`
+    );
 
-        // FIXED: Enforce clear integer parsing if ticket IDs are serial sequences
-        const ticketIdInt = parseInt(ticket.id, 10);
+    /* =========================
+       GET PAID TICKETS
+    ========================= */
+
+    const ticketResult =
+      await pool.query(
+        `
+        SELECT
+          id,
+          customer_name,
+          customer_email,
+          event_title
+        FROM tickets
+        WHERE event_id = $1
+        AND payment_status = 'PAID'
+        AND deleted_at IS NULL
+        `,
+        [eventIdInt]
+      );
+
+    /* =========================
+       SEND VERIFICATION EMAILS
+    ========================= */
+
+    for (
+      const ticket of ticketResult.rows
+    ) {
+
+      try {
+
+        await sendVerificationCodeEmail(
+          ticket,
+          code
+        );
+
+        const ticketIdInt =
+          parseInt(ticket.id, 10);
 
         await pool.query(
           `
           UPDATE tickets
           SET
-            verification_code_sent_at = CURRENT_TIMESTAMP
+            verification_code_sent_at =
+              CURRENT_TIMESTAMP
           WHERE id = $1
           `,
-          [isNaN(ticketIdInt) ? ticket.id : ticketIdInt]
+          [
+            Number.isNaN(ticketIdInt)
+              ? ticket.id
+              : ticketIdInt
+          ]
+        );
+
+        console.log(
+          `Verification code email sent to ${ticket.customer_email}`
         );
 
       } catch (emailError) {
-        console.error(`❌ Failed sending verification code to ${ticket.customer_email}:`, emailError);
+
+        console.error(
+          `Failed sending verification code to ${ticket.customer_email}:`,
+          emailError
+        );
+
       }
     }
 
   } catch (error) {
+
     try {
-      await client.query("ROLLBACK");
+
+      await client.query(
+        "ROLLBACK"
+      );
+
     } catch (_) {}
+
     throw error;
-  } {
+
+  } finally {
+
     client.release();
+
   }
 }
 
@@ -214,5 +350,7 @@ async function generateCodeForEvent(event) {
 ========================= */
 
 module.exports = {
-  generateEventVerificationCodes
+  generateEventVerificationCodes,
+  generateCodeForEvent
 };
+
