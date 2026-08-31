@@ -1,11 +1,14 @@
-﻿const nodemailer = require("nodemailer");
+﻿const dns = require("dns");
+
+dns.setDefaultResultOrder("ipv4first");
+
+const nodemailer = require("nodemailer");
 const QRCode = require("qrcode");
 
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
   secure: false,
-  family: 4,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASSWORD
@@ -49,15 +52,19 @@ async function sendTicketEmail(ticket) {
         padding: 30px;
         background: #f5f5f5;
       ">
+
         <div style="
           background: white;
           padding: 30px;
           border-radius: 15px;
           text-align: center;
         ">
+
           <h1>Your Ticket is Ready!</h1>
 
-          <p>Hello ${ticket.customer_name},</p>
+          <p>
+            Hello ${ticket.customer_name},
+          </p>
 
           <p>
             Your payment has been
@@ -66,7 +73,9 @@ async function sendTicketEmail(ticket) {
 
           <hr>
 
-          <h2>${ticket.event_title}</h2>
+          <h2>
+            ${ticket.event_title}
+          </h2>
 
           <p>
             <strong>Ticket Type</strong>
@@ -119,7 +128,9 @@ async function sendTicketEmail(ticket) {
             on the day of the gala.
           </p>
 
-          <p>You will need both:</p>
+          <p>
+            You will need both:
+          </p>
 
           <p>
             <strong>1. Your QR code</strong>
@@ -141,7 +152,9 @@ async function sendTicketEmail(ticket) {
             Keep your QR code and
             verification code private.
           </p>
+
         </div>
+
       </div>
     `,
 
@@ -182,15 +195,21 @@ async function sendVerificationCodeEmail(
         padding: 30px;
         background: #f5f5f5;
       ">
+
         <div style="
           background: white;
           padding: 30px;
           border-radius: 15px;
           text-align: center;
         ">
-          <h1>Your Gala Entry Code</h1>
 
-          <p>Hello ${ticket.customer_name},</p>
+          <h1>
+            Your Gala Entry Code
+          </h1>
+
+          <p>
+            Hello ${ticket.customer_name},
+          </p>
 
           <p>
             Today is the day!
@@ -204,6 +223,7 @@ async function sendVerificationCodeEmail(
             background: #f1f1f1;
             border-radius: 12px;
           ">
+
             <p style="
               margin: 0 0 10px;
               color: #666;
@@ -218,9 +238,12 @@ async function sendVerificationCodeEmail(
             ">
               ${verificationCode}
             </div>
+
           </div>
 
-          <h3>Entry Instructions</h3>
+          <h3>
+            Entry Instructions
+          </h3>
 
           <p>
             At the entrance you will need:
@@ -253,7 +276,9 @@ async function sendVerificationCodeEmail(
             has been successfully verified
             at the entrance.
           </p>
+
         </div>
+
       </div>
     `
   };
