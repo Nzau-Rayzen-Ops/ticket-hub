@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
 export default function EventDetails() {
@@ -54,26 +54,88 @@ export default function EventDetails() {
   };
 
   // ?????? ADD THESE HELPER FUNCTIONS ??????
+  const isEarlyBirdActive = () => {
+    if (!event) return false;
+
+    if (!event.early_bird_enabled) {
+      return false;
+    }
+
+    if (!event.early_bird_expiry) {
+      return true;
+    }
+
+    const expiry = new Date(
+      event.early_bird_expiry
+    );
+
+    if (Number.isNaN(expiry.getTime())) {
+      return false;
+    }
+
+    return new Date() < expiry;
+  };
+
   const getTicketPrice = () => {
     if (!event) return 0;
-    
-    switch(selectedTicketType) {
+
+    switch (selectedTicketType) {
+
+      case "early_bird":
+        if (isEarlyBirdActive()) {
+          return Number(
+            event.early_bird_single_price ||
+            event.single_price ||
+            event.price ||
+            0
+          );
+        }
+
+        return Number(
+          event.single_price ||
+          event.price ||
+          0
+        );
+
       case "couple":
-        return event.couple_price || event.single_price || event.price;
+        return Number(
+          event.couple_price ||
+          event.single_price ||
+          event.price ||
+          0
+        );
+
       case "group3":
-        return event.group3_price || event.single_price || event.price;
+        return Number(
+          event.group3_price ||
+          event.single_price ||
+          event.price ||
+          0
+        );
+
       case "single":
       default:
-        return event.single_price || event.price;
+        return Number(
+          event.single_price ||
+          event.price ||
+          0
+        );
     }
   };
 
   const getTicketLabel = () => {
-    switch(selectedTicketType) {
+
+    switch (selectedTicketType) {
+
+      case "early_bird":
+        return "Early Bird";
+
       case "couple":
         return "Couple (2 People)";
+
       case "group3":
         return "Group of 3";
+
       case "single":
       default:
         return "Single Ticket";
@@ -124,7 +186,7 @@ export default function EventDetails() {
           <p className="event-category">UPCOMING EVENT</p>
           <h1>{event.title}</h1>
           <p>
-            {event.date} � {event.venue}
+            {event.date} ï¿½ {event.venue}
           </p>
         </div>
       </section>
@@ -167,48 +229,108 @@ export default function EventDetails() {
 
         <div className="ticket-selection">
 
-          <h2>Select Tickets</h2>
+          <h2>Select Tickets</h2>          <div className="ticket-types">
 
-          <div className="ticket-types">
+            {/* Early Bird Ticket */}
+            {isEarlyBirdActive() &&
+              event.early_bird_single_price &&
+              Number(event.early_bird_single_price) > 0 && (
 
-            {/* ?????? REPLACE THE BUTTON WITH THESE ?????? */}
-            
+              <button
+                className={`ticket-option ${
+                  selectedTicketType === "early_bird"
+                    ? "selected"
+                    : ""
+                }`}
+                type="button"
+                onClick={() =>
+                  setSelectedTicketType("early_bird")
+                }
+              >
+                <span>?? Early Bird</span>
+
+                <strong>
+                  KES{" "}
+                  {Number(
+                    event.early_bird_single_price
+                  ).toLocaleString()}
+                </strong>
+
+              </button>
+            )}
+
             {/* Single Ticket - Always show */}
             <button
-              className={`ticket-option ${selectedTicketType === "single" ? "selected" : ""}`}
+              className={`ticket-option ${
+                selectedTicketType === "single"
+                  ? "selected"
+                  : ""
+              }`}
               type="button"
-              onClick={() => setSelectedTicketType("single")}
+              onClick={() =>
+                setSelectedTicketType("single")
+              }
             >
               <span>?? Single Ticket</span>
+
               <strong>
-                KES {(event.single_price || event.price).toLocaleString()}
+                KES{" "}
+                {Number(
+                  event.single_price ||
+                  event.price ||
+                  0
+                ).toLocaleString()}
               </strong>
             </button>
 
-            {/* Couple Ticket - Only show if couple_price exists */}
-            {event.couple_price && event.couple_price > 0 && (
+            {/* Couple Ticket */}
+            {event.couple_price &&
+              Number(event.couple_price) > 0 && (
+
               <button
-                className={`ticket-option ${selectedTicketType === "couple" ? "selected" : ""}`}
+                className={`ticket-option ${
+                  selectedTicketType === "couple"
+                    ? "selected"
+                    : ""
+                }`}
                 type="button"
-                onClick={() => setSelectedTicketType("couple")}
+                onClick={() =>
+                  setSelectedTicketType("couple")
+                }
               >
                 <span>?? Couple (2 People)</span>
+
                 <strong>
-                  KES {event.couple_price.toLocaleString()}
+                  KES{" "}
+                  {Number(
+                    event.couple_price
+                  ).toLocaleString()}
                 </strong>
               </button>
             )}
 
-            {/* Group of 3 Ticket - Only show if group3_price exists */}
-            {event.group3_price && event.group3_price > 0 && (
+            {/* Group of 3 Ticket */}
+            {event.group3_price &&
+              Number(event.group3_price) > 0 && (
+
               <button
-                className={`ticket-option ${selectedTicketType === "group3" ? "selected" : ""}`}
+                className={`ticket-option ${
+                  selectedTicketType === "group3"
+                    ? "selected"
+                    : ""
+                }`}
                 type="button"
-                onClick={() => setSelectedTicketType("group3")}
+                onClick={() =>
+                  setSelectedTicketType("group3")
+                }
               >
                 <span>?? Group of 3</span>
+
                 <strong>
-                  KES {event.group3_price.toLocaleString()}
+                  KES{" "}
+                  {Number(
+                    event.group3_price
+                  ).toLocaleString()}
                 </strong>
               </button>
             )}
@@ -247,7 +369,7 @@ export default function EventDetails() {
 
           <div className="checkout-summary">
 
-            <span>Total ({quantity} � {getTicketLabel()})</span>
+            <span>Total ({quantity} ï¿½ {getTicketLabel()})</span>
 
             <strong>
               KES {total.toLocaleString()}
@@ -272,3 +394,4 @@ export default function EventDetails() {
     </div>
   );
 }
+
