@@ -133,8 +133,7 @@ async function createTicket(req, res) {
         LIMIT 1
         `,
         [
-          String(customerEmail)
-            .trim(),
+          String(customerEmail).trim(),
           Number(eventId)
         ]
       );
@@ -158,26 +157,22 @@ async function createTicket(req, res) {
 
 
     /* =========================
-       VALIDATE NUMBERS
+       VALIDATE QUANTITY
     ========================= */
 
     const ticketQuantity =
       Number(quantity);
 
-    const ticketPrice =
-      Number(price);
-
 
     if (
       !Number.isInteger(ticketQuantity) ||
-      ticketQuantity <= 0 ||
-      !Number.isFinite(ticketPrice) ||
-      ticketPrice < 0
+      ticketQuantity <= 0
     ) {
 
       return res.status(400).json({
+
         message:
-          "Invalid ticket quantity or price."
+          "Invalid ticket quantity."
       });
     }
 
@@ -243,6 +238,191 @@ async function createTicket(req, res) {
 
 
     /* =========================
+       CALCULATE SECURE PRICE
+       
+       The backend decides the
+       actual ticket price.
+
+       Early Bird applies only to
+       SINGLE tickets.
+    ========================= */
+
+    const normalizedTicketType =
+      String(ticketType)
+        .trim()
+        .toUpperCase();
+
+
+    let ticketPrice;
+
+
+    const now =
+      new Date();
+
+
+    let earlyBirdActive = false;
+
+
+    if (
+      event.early_bird_enabled === true ||
+      event.early_bird_enabled === "true"
+    ) {
+
+      if (
+        event.early_bird_expiry
+      ) {
+
+        const expiry =
+          new Date(
+            `${String(event.early_bird_expiry).slice(0, 10)}T23:59:59`
+          );
+
+
+        if (
+          now <= expiry
+        ) {
+
+          earlyBirdActive = true;
+
+        }
+
+      }
+
+    }
+
+
+    /* =========================
+       SINGLE
+    ========================= */
+
+    if (
+      normalizedTicketType === "SINGLE" ||
+      normalizedTicketType === "SINGLE TICKET"
+    ) {
+
+      if (
+        earlyBirdActive &&
+        event.early_bird_single_price !== null &&
+        event.early_bird_single_price !== undefined
+      ) {
+
+        ticketPrice =
+          Number(
+            event.early_bird_single_price
+          );
+
+      } else if (
+        event.single_price !== null &&
+        event.single_price !== undefined
+      ) {
+
+        ticketPrice =
+          Number(
+            event.single_price
+          );
+
+      } else {
+
+        ticketPrice =
+          Number(event.price);
+
+      }
+
+    }
+
+
+    /* =========================
+       COUPLE
+    ========================= */
+
+    else if (
+      normalizedTicketType === "COUPLE" ||
+      normalizedTicketType === "COUPLE TICKET"
+    ) {
+
+      if (
+        event.couple_price !== null &&
+        event.couple_price !== undefined
+      ) {
+
+        ticketPrice =
+          Number(
+            event.couple_price
+          );
+
+      } else {
+
+        ticketPrice =
+          Number(event.price);
+
+      }
+
+    }
+
+
+    /* =========================
+       GROUP OF 3
+    ========================= */
+
+    else if (
+      normalizedTicketType === "GROUP3" ||
+      normalizedTicketType === "GROUP 3" ||
+      normalizedTicketType === "GROUP OF 3" ||
+      normalizedTicketType === "GROUP3 TICKET"
+    ) {
+
+      if (
+        event.group3_price !== null &&
+        event.group3_price !== undefined
+      ) {
+
+        ticketPrice =
+          Number(
+            event.group3_price
+          );
+
+      } else {
+
+        ticketPrice =
+          Number(event.price);
+
+      }
+
+    }
+
+
+    /* =========================
+       UNKNOWN TICKET TYPE
+    ========================= */
+
+    else {
+
+      ticketPrice =
+        Number(event.price);
+
+    }
+
+
+    /* =========================
+       VALIDATE FINAL PRICE
+    ========================= */
+
+    if (
+      !Number.isFinite(ticketPrice) ||
+      ticketPrice < 0
+    ) {
+
+      await client.query("ROLLBACK");
+
+      return res.status(400).json({
+
+        message:
+          "Invalid ticket price configured for this event."
+      });
+    }
+
+
+    /* =========================
        SECURE TICKET ID
     ========================= */
 
@@ -267,16 +447,6 @@ async function createTicket(req, res) {
 
     /* =========================
        CREATE TICKET
-       
-       NOTE:
-       This preserves your current
-       application behavior where
-       createTicket creates a PAID
-       ticket.
-
-       Your payment flow can later
-       create/update this separately
-       if needed.
     ========================= */
 
     const insertResult =
@@ -441,7 +611,6 @@ async function createTicket(req, res) {
     client.release();
   }
 }
-
 
 /* =========================
    GET SINGLE TICKET
@@ -2723,5 +2892,6 @@ module.exports = {
   confirmManualPayment,
   rejectManualPayment
 };
+
 
 

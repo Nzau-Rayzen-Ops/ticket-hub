@@ -1,24 +1,10 @@
-import {
-  useState
-} from "react";
-
-import {
-  Link,
-  useNavigate
-} from "react-router-dom";
-
+﻿import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function CreateEvent() {
+  const navigate = useNavigate();
 
-  const navigate =
-    useNavigate();
-
-
-  const [
-    form,
-    setForm
-  ] = useState({
-
+  const [form, setForm] = useState({
     title: "",
     description: "",
     date: "",
@@ -27,596 +13,500 @@ export default function CreateEvent() {
     price: "",
     total_tickets: "",
     image: "",
-
     single_price: "",
     couple_price: "",
-    group3_price: ""
-
+    group3_price: "",
+    early_bird_enabled: false,
+    early_bird_single_price: "",
+    early_bird_expiry: ""
   });
 
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  const [
-    saving,
-    setSaving
-  ] = useState(false);
+  function handleChange(e) {
+    const { name, value, type, checked } = e.target;
 
-
-  const [
-    error,
-    setError
-  ] = useState("");
-
-
-  function handleChange(event) {
-
-    const {
-      name,
-      value
-    } = event.target;
-
-
-    setForm(
-      (previous) => ({
-
-        ...previous,
-
-        [name]:
-          value
-
-      })
-    );
-
+    setForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value
+    }));
   }
 
-
-  async function handleSubmit(event) {
-
-    event.preventDefault();
-
+  async function handleSubmit(e) {
+    e.preventDefault();
     setError("");
 
-
-    if (
-      !form.title ||
-      !form.date ||
-      !form.time ||
-      !form.venue ||
-      !form.price ||
-      !form.total_tickets
-    ) {
-
-      setError(
-        "Please fill in all required fields."
-      );
-
+    if (!form.title.trim()) {
+      setError("Event title is required.");
       return;
-
     }
 
+    if (!form.date) {
+      setError("Event date is required.");
+      return;
+    }
 
-    try {
+    if (!form.time) {
+      setError("Event time is required.");
+      return;
+    }
 
-      setSaving(true);
+    if (!form.venue.trim()) {
+      setError("Venue is required.");
+      return;
+    }
 
+    if (!form.total_tickets || Number(form.total_tickets) <= 0) {
+      setError("Total tickets must be greater than 0.");
+      return;
+    }
 
-      const response =
-        await fetch(
-          "/api/events",
-          {
+    if (form.price === "" || Number(form.price) < 0) {
+      setError("Standard ticket price must be valid.");
+      return;
+    }
 
-            method: "POST",
+    if (
+      form.single_price !== "" &&
+      Number(form.single_price) < 0
+    ) {
+      setError("Single ticket price must be valid.");
+      return;
+    }
 
-            headers: {
-              "Content-Type":
-                "application/json"
-            },
+    if (
+      form.couple_price !== "" &&
+      Number(form.couple_price) < 0
+    ) {
+      setError("Couple ticket price must be valid.");
+      return;
+    }
 
-            credentials:
-              "include",
+    if (
+      form.group3_price !== "" &&
+      Number(form.group3_price) < 0
+    ) {
+      setError("Group of 3 ticket price must be valid.");
+      return;
+    }
 
-            body:
-              JSON.stringify({
+    /* =========================
+       EARLY BIRD VALIDATION
+    ========================= */
 
-                title:
-                  form.title,
-
-                description:
-                  form.description,
-
-                date:
-                  form.date,
-
-                time:
-                  form.time,
-
-                venue:
-                  form.venue,
-
-                price:
-                  Number(form.price),
-
-                total_tickets:
-                  Number(
-                    form.total_tickets
-                  ),
-
-                image:
-                  form.image,
-
-                single_price:
-                  form.single_price
-                    ? Number(
-                        form.single_price
-                      )
-                    : Number(
-                        form.price
-                      ),
-
-                couple_price:
-                  form.couple_price
-                    ? Number(
-                        form.couple_price
-                      )
-                    : null,
-
-                group3_price:
-                  form.group3_price
-                    ? Number(
-                        form.group3_price
-                      )
-                    : null,
-
-                early_bird_enabled:
-                  0,
-
-                early_bird_single_price:
-                  null,
-
-                early_bird_expiry:
-                  null
-
-              })
-
-          }
-        );
-
-
-      const data =
-        await response.json();
-
-
-      if (!response.ok) {
-
-        throw new Error(
-          data.message ||
-          "Failed to create event."
-        );
-
+    if (form.early_bird_enabled) {
+      if (
+        form.early_bird_single_price === "" ||
+        Number(form.early_bird_single_price) < 0
+      ) {
+        setError("Please enter a valid Early Bird ticket price.");
+        return;
       }
 
+      if (!form.early_bird_expiry) {
+        setError("Please select when Early Bird sales should end.");
+        return;
+      }
 
-      navigate(
-        "/admin/events"
+      const expiry = new Date(
+        `${form.early_bird_expiry}T23:59:59`
       );
 
+      const eventDate = new Date(
+        `${form.date}T23:59:59`
+      );
+
+      if (expiry > eventDate) {
+        setError(
+          "Early Bird expiry cannot be after the event date."
+        );
+        return;
+      }
+    }
+
+    try {
+      setSaving(true);
+
+      const response = await fetch("/api/events", {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json"
+        },
+
+        credentials: "include",
+
+        body: JSON.stringify({
+          title: form.title.trim(),
+          description: form.description.trim(),
+          date: form.date,
+          time: form.time,
+          venue: form.venue.trim(),
+
+          price: Number(form.price),
+
+          total_tickets: Number(form.total_tickets),
+
+          image: form.image.trim(),
+
+          single_price:
+            form.single_price === ""
+              ? Number(form.price)
+              : Number(form.single_price),
+
+          couple_price:
+            form.couple_price === ""
+              ? null
+              : Number(form.couple_price),
+
+          group3_price:
+            form.group3_price === ""
+              ? null
+              : Number(form.group3_price),
+
+          early_bird_enabled:
+            form.early_bird_enabled,
+
+          early_bird_single_price:
+            form.early_bird_enabled
+              ? Number(form.early_bird_single_price)
+              : null,
+
+          early_bird_expiry:
+            form.early_bird_enabled
+              ? form.early_bird_expiry
+              : null
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Failed to create event."
+        );
+      }
+
+      navigate("/admin/events");
 
     } catch (error) {
-
       console.error(
         "Create event error:",
         error
       );
 
       setError(
-        error.message
+        error.message ||
+        "Failed to create event."
       );
 
-
     } finally {
-
       setSaving(false);
-
     }
-
   }
 
-
   return (
-
     <div className="admin-page">
 
-      <aside className="admin-sidebar">
+      <div className="admin-card">
 
-        <div className="admin-brand">
+        <h1>Create Event</h1>
 
-          Ticket<span>Hub</span>
-
-          <small>
-            ADMIN
-          </small>
-
-        </div>
-
-
-        <nav className="admin-nav">
-
-          <Link to="/admin">
-            Dashboard
-          </Link>
-
-          <Link
-            to="/admin/events"
-            className="active"
+        {error && (
+          <div
+            style={{
+              background: "#fee2e2",
+              color: "#991b1b",
+              padding: "12px",
+              borderRadius: "8px",
+              marginBottom: "20px"
+            }}
           >
-            Events
-          </Link>
+            {error}
+          </div>
+        )}
 
-          <Link to="/admin/orders">
-            Orders
-          </Link>
+        <form onSubmit={handleSubmit}>
 
-          <Link to="/admin/tickets">
-            Tickets
-          </Link>
-
-          <Link to="/scanner">
-            Scanner
-          </Link>
-
-        </nav>
-
-
-        <Link
-          to="/"
-          className="admin-back"
-        >
-          ? Back to website
-        </Link>
-
-      </aside>
-
-
-      <main className="admin-main">
-
-        <header className="admin-header">
+          {/* =========================
+              BASIC EVENT INFORMATION
+          ========================= */}
 
           <div>
+            <label>Event Title</label>
 
-            <p className="admin-label">
-              EVENT MANAGEMENT
-            </p>
+            <input
+              type="text"
+              name="title"
+              value={form.title}
+              onChange={handleChange}
+              placeholder="Event title"
+            />
+          </div>
 
-            <h1>
-              Create Event
-            </h1>
+          <div>
+            <label>Description</label>
 
-            <p>
-              Add a new event to your
-              ticketing system.
-            </p>
+            <textarea
+              name="description"
+              value={form.description}
+              onChange={handleChange}
+              placeholder="Describe the event"
+              rows="5"
+            />
+          </div>
+
+          <div>
+            <label>Event Date</label>
+
+            <input
+              type="date"
+              name="date"
+              value={form.date}
+              onChange={handleChange}
+            />
+          </div>
+
+          <div>
+            <label>Event Time</label>
+
+            <input
+              type="time"
+              name="time"
+              value={form.time}
+              onChange={handleChange}
+            />
+          </div>
+
+          <div>
+            <label>Venue</label>
+
+            <input
+              type="text"
+              name="venue"
+              value={form.venue}
+              onChange={handleChange}
+              placeholder="Event venue"
+            />
+          </div>
+
+          <div>
+            <label>Event Image URL</label>
+
+            <input
+              type="text"
+              name="image"
+              value={form.image}
+              onChange={handleChange}
+              placeholder="https://..."
+            />
+          </div>
+
+          <div>
+            <label>Total Tickets</label>
+
+            <input
+              type="number"
+              min="1"
+              name="total_tickets"
+              value={form.total_tickets}
+              onChange={handleChange}
+              placeholder="Number of tickets"
+            />
+          </div>
+
+          {/* =========================
+              TICKET PRICING
+          ========================= */}
+
+          <div
+            style={{
+              marginTop: "25px",
+              padding: "20px",
+              border: "1px solid #ddd",
+              borderRadius: "10px"
+            }}
+          >
+
+            <h2>Ticket Pricing</h2>
+
+            <div>
+              <label>Standard Ticket Price</label>
+
+              <input
+                type="number"
+                min="0"
+                name="price"
+                value={form.price}
+                onChange={handleChange}
+                placeholder="KES"
+              />
+            </div>
+
+            <div>
+              <label>Single Ticket Price</label>
+
+              <input
+                type="number"
+                min="0"
+                name="single_price"
+                value={form.single_price}
+                onChange={handleChange}
+                placeholder="Leave empty to use standard price"
+              />
+            </div>
+
+            <div>
+              <label>Couple Ticket Price</label>
+
+              <input
+                type="number"
+                min="0"
+                name="couple_price"
+                value={form.couple_price}
+                onChange={handleChange}
+                placeholder="Optional"
+              />
+            </div>
+
+            <div>
+              <label>Group of 3 Price</label>
+
+              <input
+                type="number"
+                min="0"
+                name="group3_price"
+                value={form.group3_price}
+                onChange={handleChange}
+                placeholder="Optional"
+              />
+            </div>
 
           </div>
 
-        </header>
+          {/* =========================
+              EARLY BIRD TICKETS
+          ========================= */}
 
-
-        <section className="admin-section">
-
-          {error && (
-
-            <div className="admin-form-error">
-              {error}
-            </div>
-
-          )}
-
-
-          <form
-            onSubmit={handleSubmit}
-            className="admin-event-form"
+          <div
+            style={{
+              marginTop: "25px",
+              padding: "20px",
+              border: "1px solid #ddd",
+              borderRadius: "10px"
+            }}
           >
 
-            <div className="admin-form-grid">
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                cursor: "pointer"
+              }}
+            >
 
+              <input
+                type="checkbox"
+                name="early_bird_enabled"
+                checked={form.early_bird_enabled}
+                onChange={handleChange}
+              />
 
-              <div className="admin-form-group admin-form-full">
+              <strong>
+                Enable Early Bird Tickets
+              </strong>
 
-                <label htmlFor="title">
-                  Event Title *
-                </label>
+            </label>
 
-                <input
-                  id="title"
-                  name="title"
-                  type="text"
-                  value={form.title}
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="e.g. Nairobi Music Festival"
-                  required
-                />
+            {form.early_bird_enabled && (
+              <div
+                style={{
+                  marginTop: "18px"
+                }}
+              >
 
-              </div>
+                <div>
+                  <label>
+                    Early Bird Ticket Price
+                  </label>
 
+                  <input
+                    type="number"
+                    min="0"
+                    name="early_bird_single_price"
+                    value={form.early_bird_single_price}
+                    onChange={handleChange}
+                    placeholder="KES"
+                  />
+                </div>
 
-              <div className="admin-form-group admin-form-full">
-
-                <label htmlFor="description">
-                  Description
-                </label>
-
-                <textarea
-                  id="description"
-                  name="description"
-                  value={
-                    form.description
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="Describe your event..."
-                  rows="5"
-                />
-
-              </div>
-
-
-              <div className="admin-form-group">
-
-                <label htmlFor="date">
-                  Date *
-                </label>
-
-                <input
-                  id="date"
-                  name="date"
-                  type="date"
-                  value={form.date}
-                  onChange={
-                    handleChange
-                  }
-                  required
-                />
-
-              </div>
-
-
-              <div className="admin-form-group">
-
-                <label htmlFor="time">
-                  Time *
-                </label>
-
-                <input
-                  id="time"
-                  name="time"
-                  type="time"
-                  value={form.time}
-                  onChange={
-                    handleChange
-                  }
-                  required
-                />
-
-              </div>
-
-
-              <div className="admin-form-group admin-form-full">
-
-                <label htmlFor="venue">
-                  Venue *
-                </label>
-
-                <input
-                  id="venue"
-                  name="venue"
-                  type="text"
-                  value={form.venue}
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="e.g. Uhuru Gardens"
-                  required
-                />
-
-              </div>
-
-
-              <div className="admin-form-group">
-
-                <label htmlFor="price">
-                  Ticket Price (KSh) *
-                </label>
-
-                <input
-                  id="price"
-                  name="price"
-                  type="number"
-                  min="0"
-                  value={form.price}
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="1000"
-                  required
-                />
-
-              </div>
-
-
-              <div className="admin-form-group">
-
-                <label htmlFor="total_tickets">
-                  Total Tickets *
-                </label>
-
-                <input
-                  id="total_tickets"
-                  name="total_tickets"
-                  type="number"
-                  min="1"
-                  value={
-                    form.total_tickets
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="100"
-                  required
-                />
-
-              </div>
-
-
-              <div className="admin-form-group admin-form-full">
-
-                <h3
+                <div
                   style={{
-                    marginTop: "20px",
-                    marginBottom: "10px"
+                    marginTop: "15px"
                   }}
                 >
-                  Ticket Types
-                </h3>
+
+                  <label>
+                    Early Bird Ends On
+                  </label>
+
+                  <input
+                    type="date"
+                    name="early_bird_expiry"
+                    value={form.early_bird_expiry}
+                    onChange={handleChange}
+                    min={undefined}
+                    max={form.date || undefined}
+                  />
+
+                </div>
 
                 <p
                   style={{
-                    fontSize: "14px",
+                    marginTop: "12px",
                     color: "#666",
-                    marginBottom: "15px"
+                    lineHeight: "1.5"
                   }}
                 >
-                  Leave blank to use
-                  the base price.
+                  Early Bird pricing applies only until
+                  the selected date. After this date,
+                  normal ticket pricing will automatically
+                  apply.
                 </p>
 
               </div>
+            )}
 
+          </div>
 
-              <div className="admin-form-group">
+          {/* =========================
+              SUBMIT
+          ========================= */}
 
-                <label htmlFor="single_price">
-                  Single Ticket Price (KSh)
-                </label>
+          <div
+            style={{
+              marginTop: "25px"
+            }}
+          >
 
-                <input
-                  id="single_price"
-                  name="single_price"
-                  type="number"
-                  min="0"
-                  value={
-                    form.single_price
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="Leave blank for base price"
-                />
+            <button
+              type="submit"
+              disabled={saving}
+              className="ticket-button"
+            >
+              {saving
+                ? "Creating Event..."
+                : "Create Event"}
+            </button>
 
-              </div>
+          </div>
 
+        </form>
 
-              <div className="admin-form-group">
-
-                <label htmlFor="couple_price">
-                  Couple Ticket (2 People) KSh
-                </label>
-
-                <input
-                  id="couple_price"
-                  name="couple_price"
-                  type="number"
-                  min="0"
-                  value={
-                    form.couple_price
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="e.g. 1800"
-                />
-
-              </div>
-
-
-              <div className="admin-form-group">
-
-                <label htmlFor="group3_price">
-                  Group of 3 Ticket KSh
-                </label>
-
-                <input
-                  id="group3_price"
-                  name="group3_price"
-                  type="number"
-                  min="0"
-                  value={
-                    form.group3_price
-                  }
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="e.g. 2500"
-                />
-
-              </div>
-
-
-              <div className="admin-form-group admin-form-full">
-
-                <label htmlFor="image">
-                  Image URL
-                </label>
-
-                <input
-                  id="image"
-                  name="image"
-                  type="url"
-                  value={form.image}
-                  onChange={
-                    handleChange
-                  }
-                  placeholder="https://example.com/event-image.jpg"
-                />
-
-              </div>
-
-
-            </div>
-
-
-            <div className="admin-form-actions">
-
-              <button
-                type="submit"
-                className="admin-primary-button"
-                disabled={saving}
-              >
-                {saving
-                  ? "Creating..."
-                  : "Create Event"}
-              </button>
-
-
-              <Link
-                to="/admin/events"
-                className="admin-secondary-button"
-              >
-                Cancel
-              </Link>
-
-            </div>
-
-
-          </form>
-
-        </section>
-
-      </main>
+      </div>
 
     </div>
-
   );
-
 }
