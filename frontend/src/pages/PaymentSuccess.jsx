@@ -1,543 +1,379 @@
+﻿import React, { useState } from "react";
 import {
   useLocation,
   useNavigate
 } from "react-router-dom";
 
-import {
-  useEffect,
-  useState,
-  useRef
-} from "react";
-
 export default function PaymentSuccess() {
 
   const { state } = useLocation();
-
   const navigate = useNavigate();
 
-  const [ticketData, setTicketData] =
-    useState(null);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [error, setError] =
-    useState("");
-
-  const hasCreatedTicket =
-    useRef(false);
-
-  /* =========================
-     CREATE TICKET
-  ========================= */
-
-  useEffect(() => {
-
-    if (!state) {
-
-      setLoading(false);
-
-      return;
-    }
-
-    if (
-      hasCreatedTicket.current
-    ) {
-
-      setLoading(false);
-
-      return;
-    }
-
-    const createTicket =
-      async () => {
-
-        try {
-
-          /*
-            This page should only be reached
-            after successful M-Pesa confirmation.
-          */
-
-          if (
-            !state.checkoutRequestID
-          ) {
-
-            throw new Error(
-              "Payment confirmation information is missing."
-            );
-          }
-
-          /*
-            Use the exact idempotency key
-            created during Checkout.
-          */
-          const idempotencyKey =
-            state.idempotencyKey ||
-            `purchase-${state.event.id}-${Date.now()}`;
-
-          const response =
-            await fetch(
-              "/api/tickets",
-              {
-                method: "POST",
-
-                headers: {
-                  "Content-Type":
-                    "application/json"
-                },
-
-                body: JSON.stringify({
-                  eventId:
-                    state.event.id,
-
-                  eventTitle:
-                    state.event.title,
-
-                  ticketType:
-                    state.ticket.name,
-
-                  price:
-                    state.ticket.price,
-
-                  quantity:
-                    state.quantity,
-
-                  customerName:
-                    state.customer.name,
-
-                  customerEmail:
-                    state.customer.email,
-
-                  customerPhone:
-                    state.customer.phone,
-
-                  idempotencyKey
-                })
-              }
-            );
-
-          const data =
-            await response.json();
-
-          /*
-            Duplicate protection.
-          */
-          if (
-            response.status === 409
-          ) {
-
-            console.log(
-              "Duplicate ticket detected. Looking up existing ticket."
-            );
-
-            const fallbackResponse =
-              await fetch(
-                `/api/tickets/lookup?email=${encodeURIComponent(
-                  state.customer.email
-                )}&eventId=${encodeURIComponent(
-                  state.event.id
-                )}`
-              );
-
-            if (
-              fallbackResponse.ok
-            ) {
-
-              const existingTickets =
-                await fallbackResponse.json();
-
-              const existingTicket =
-                existingTickets.find(
-                  (t) =>
-                    t.event_id ===
-                      String(state.event.id) &&
-                    t.payment_status ===
-                      "PAID" &&
-                    t.deleted_at === null
-                );
-
-              if (
-                existingTicket
-              ) {
-
-                hasCreatedTicket.current =
-                  true;
-
-                setTicketData({
-                  ticketId:
-                    existingTicket.ticket_id,
-
-                  event:
-                    state.event,
-
-                  ticket:
-                    state.ticket,
-
-                  quantity:
-                    existingTicket.quantity,
-
-                  total:
-                    existingTicket.price *
-                    existingTicket.quantity,
-
-                  customer:
-                    state.customer
-                });
-
-                setLoading(false);
-
-                return;
-              }
-            }
-
-            throw new Error(
-              "A duplicate purchase was detected, but we could not retrieve the ticket."
-            );
-          }
-
-          if (
-            !response.ok
-          ) {
-
-            throw new Error(
-              data.message ||
-              "Failed to create your ticket."
-            );
-          }
-
-          if (
-            !data.ticket
-          ) {
-
-            throw new Error(
-              "The server did not return the created ticket."
-            );
-          }
-
-          const officialTicket =
-            data.ticket;
-
-          hasCreatedTicket.current =
-            true;
-
-          setTicketData({
-
-            ticketId:
-              officialTicket.ticket_id,
-
-            event:
-              state.event,
-
-            ticket:
-              state.ticket,
-
-            quantity:
-              officialTicket.quantity,
-
-            total:
-              officialTicket.price *
-              officialTicket.quantity,
-
-            customer:
-              state.customer,
-
-            /*
-              QR token is returned only
-              at creation time.
-            */
-            qrToken:
-              officialTicket.qrToken
-          });
-
-        } catch (err) {
-
-          console.error(
-            "Ticket creation error:",
-            err
-          );
-
-          setError(
-            err.message ||
-            "Ticket generation failed."
-          );
-
-        } finally {
-
-          setLoading(false);
-        }
-      };
-
-    createTicket();
-
-  }, [state]);
-
-  /* =========================
-     NO STATE
-  ========================= */
+  const [whatsappNumber, setWhatsappNumber] = useState("");
 
   if (!state) {
 
     return (
       <div className="success-page">
-
         <div className="success-card">
 
           <h1>
-            Payment information not found
+            Order Information Not Found
           </h1>
-
-          <p
-            style={{
-              color: "#666",
-              marginBottom: "20px"
-            }}
-          >
-            We couldn't find your payment
-            information.
-          </p>
 
           <button
-            onClick={() =>
-              navigate("/events")
-            }
-            style={{
-              padding: "14px 30px",
-              background: "#111",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              fontSize: "16px",
-              cursor: "pointer"
-            }}
-          >
-            Browse Events
-          </button>
-
-        </div>
-
-      </div>
-    );
-  }
-
-  /* =========================
-     LOADING
-  ========================= */
-
-  if (loading) {
-
-    return (
-      <div className="success-page">
-
-        <div className="success-card">
-
-          <div
-            className="success-icon"
-            style={{
-              background: "#f5f5f5",
-              color: "#111"
-            }}
-          >
-            ?
-          </div>
-
-          <h1>
-            Generating your ticket...
-          </h1>
-
-          <p className="success-message">
-            Your M-Pesa payment has been
-            confirmed. We're generating your
-            ticket now.
-          </p>
-
-        </div>
-
-      </div>
-    );
-  }
-
-  /* =========================
-     ERROR
-  ========================= */
-
-  if (error) {
-
-    return (
-      <div className="success-page">
-
-        <div className="success-card">
-
-          <div
-            className="success-icon"
-            style={{
-              background: "#fee",
-              color: "#c00"
-            }}
-          >
-            ?
-          </div>
-
-          <h1>
-            Ticket Generation Failed
-          </h1>
-
-          <p className="success-message">
-            {error}
-          </p>
-
-          <p
-            style={{
-              color: "#666",
-              fontSize: "14px",
-              marginBottom: "20px"
-            }}
-          >
-            Your payment may already have
-            been completed. Please don't make
-            another payment immediately.
-            Check your email or contact the
-            event administrator if necessary.
-          </p>
-
-          <button
-            onClick={() =>
-              navigate("/events")
-            }
+            onClick={() => navigate("/events")}
             className="ticket-button"
           >
             Back to Events
           </button>
 
         </div>
-
       </div>
     );
   }
 
-  /* =========================
-     VIEW TICKET
-  ========================= */
+  const {
+    event,
+    ticket,
+    quantity,
+    total,
+    order,
+    receiptNumber
+  } = state;
 
-  const viewTicket = () => {
+  const handleFinish = () => {
 
-    navigate(
-      "/ticket",
-      {
-        state: ticketData
-      }
-    );
+    let number = whatsappNumber.trim();
+
+    if (!number) {
+      alert("Please enter your WhatsApp number.");
+      return;
+    }
+
+    // Remove spaces, +, brackets and hyphens
+    number = number.replace(/[\s()+-]/g, "");
+
+    // Convert Kenyan numbers such as 07XXXXXXXX
+    // to international format 2547XXXXXXXX
+    if (number.startsWith("0")) {
+      number = "254" + number.substring(1);
+    }
+
+    // If user entered 7XXXXXXXX, add Kenya country code
+    if (
+      number.startsWith("7") &&
+      number.length === 9
+    ) {
+      number = "254" + number;
+    }
+
+    // Basic Kenyan WhatsApp number validation
+    if (
+      !/^2547\d{8}$/.test(number)
+    ) {
+      alert(
+        "Please enter a valid Kenyan WhatsApp number, e.g. 0712345678."
+      );
+      return;
+    }
+
+    const orderId =
+      order?.orderId ||
+      order?.ticketId ||
+      "Pending";
+
+    const message =
+      `Hello St Mary's Gala Committee.%0A%0A` +
+      `I have completed payment for a ticket.%0A%0A` +
+      `Order ID: ${encodeURIComponent(orderId)}%0A` +
+      `Event: ${encodeURIComponent(event?.title || "Event")}%0A` +
+      `Ticket: ${encodeURIComponent(ticket?.name || "Ticket")}%0A` +
+      `Quantity: ${encodeURIComponent(quantity || 1)}%0A` +
+      `Amount: KES ${encodeURIComponent(
+        Number(total || 0).toLocaleString()
+      )}%0A` +
+      `M-Pesa Receipt: ${encodeURIComponent(
+        receiptNumber || "Submitted"
+      )}%0A%0A` +
+      `My WhatsApp number is: ${encodeURIComponent(
+        number
+      )}%0A%0A` +
+      `I understand that my payment must be verified by the event administrator. ` +
+      `Once verification is complete, I will receive my ticket by email within 24 hours.`;
+
+    window.location.href =
+      `https://wa.me/${number}?text=${message}`;
   };
 
   return (
+
     <div className="success-page">
 
       <div className="success-card">
 
-        <div className="success-icon">
-          ?
+        {/* =========================
+            STATUS ICON
+        ========================= */}
+
+        <div
+          className="success-icon"
+          style={{
+            background: "#fff3cd",
+            color: "#856404"
+          }}
+        >
+          !
         </div>
 
         <p className="success-label">
-          PAYMENT SUCCESSFUL
+          PAYMENT AWAITING CONFIRMATION
         </p>
 
         <h1>
-          Your Ticket is Ready!
+          Payment Submitted
         </h1>
 
         <p className="success-message">
 
-          Your M-Pesa payment has been
-          received and your ticket has been
-          generated successfully.
+          Thank you. Your payment information
+          has been received.
 
         </p>
+
+        {/* =========================
+            DETAILS
+        ========================= */}
 
         <div className="success-details">
 
           <div>
-
             <span>
-              Ticket ID
+              Order ID
             </span>
 
             <strong>
-              {ticketData.ticketId}
+              {
+                order?.orderId ||
+                "Pending"
+              }
             </strong>
-
           </div>
 
           <div>
-
             <span>
               Event
             </span>
 
             <strong>
-              {ticketData.event.title}
+              {event?.title || "Event"}
             </strong>
-
           </div>
 
           <div>
-
             <span>
               Ticket
             </span>
 
             <strong>
-              {ticketData.ticket.name}
+              {ticket?.name || "Ticket"}
             </strong>
-
           </div>
 
           <div>
-
             <span>
-              Total Paid
+              Quantity
+            </span>
+
+            <strong>
+              {quantity}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Amount
             </span>
 
             <strong>
               KES{" "}
-              {Number(
-                ticketData.total
-              ).toLocaleString()}
+              {Number(total || 0).toLocaleString()}
             </strong>
+          </div>
 
+          <div>
+            <span>
+              M-Pesa Receipt
+            </span>
+
+            <strong>
+              {receiptNumber || "Submitted"}
+            </strong>
+          </div>
+
+          <div>
+            <span>
+              Status
+            </span>
+
+            <strong>
+              PAYMENT PENDING
+            </strong>
           </div>
 
         </div>
 
-        <button
-          className="ticket-button"
-          onClick={viewTicket}
-        >
-          View My Ticket
-        </button>
+        {/* =========================
+            WHAT HAPPENS NEXT
+        ========================= */}
 
-        <button
-          onClick={() =>
-            navigate("/")
-          }
+        <div
           style={{
-            display: "inline-block",
-            marginTop: "15px",
-            padding: "12px 24px",
-            background: "transparent",
-            color: "#111",
-            border: "1px solid #ccc",
-            borderRadius: "6px",
-            fontSize: "15px",
-            fontWeight: "bold",
-            cursor: "pointer"
+            background: "#f5f5f5",
+            padding: "18px",
+            borderRadius: "8px",
+            marginTop: "20px",
+            marginBottom: "20px"
           }}
         >
-          ? Return to Website
+
+          <strong>
+            What happens next?
+          </strong>
+
+          <p
+            style={{
+              marginTop: "8px",
+              color: "#555",
+              lineHeight: "1.5"
+            }}
+          >
+
+            The event administrator will verify
+            your M-Pesa payment against the
+            transaction.
+
+            <br />
+            <br />
+
+            Once your payment is confirmed,
+            your ticket will be activated and
+            sent to your email.
+
+            <br />
+            <br />
+
+            <strong>
+              Please allow up to 24 hours after
+              verification for your ticket to be
+              delivered to your email.
+            </strong>
+
+          </p>
+
+        </div>
+
+        {/* =========================
+            IMPORTANT NOTICE
+        ========================= */}
+
+        <div
+          style={{
+            padding: "15px",
+            borderRadius: "8px",
+            background: "#fff3cd",
+            color: "#856404",
+            marginBottom: "20px"
+          }}
+        >
+
+          <strong>
+            Keep your M-Pesa confirmation
+            message.
+          </strong>
+
+          <p
+            style={{
+              marginTop: "6px"
+            }}
+          >
+
+            You may need the receipt number if
+            the administrator needs to verify
+            your payment.
+
+          </p>
+
+        </div>
+
+        {/* =========================
+            WHATSAPP
+        ========================= */}
+
+        <div
+          style={{
+            background: "#f5f5f5",
+            padding: "18px",
+            borderRadius: "8px",
+            marginBottom: "20px"
+          }}
+        >
+
+          <strong>
+            Send your payment details on WhatsApp
+          </strong>
+
+          <p
+            style={{
+              marginTop: "8px",
+              marginBottom: "12px",
+              color: "#555",
+              lineHeight: "1.5"
+            }}
+          >
+
+            Enter the WhatsApp number you would
+            like to use to contact the event
+            committee. It does not have to be the
+            same number you used to make the
+            M-Pesa payment.
+
+          </p>
+
+          <input
+            type="tel"
+            value={whatsappNumber}
+            onChange={(e) =>
+              setWhatsappNumber(e.target.value)
+            }
+            placeholder="e.g. 0712345678"
+            style={{
+              width: "100%",
+              padding: "12px",
+              border: "1px solid #ccc",
+              borderRadius: "6px",
+              fontSize: "16px",
+              boxSizing: "border-box"
+            }}
+          />
+
+        </div>
+
+        {/* =========================
+            FINISH
+        ========================= */}
+
+        <button
+          onClick={handleFinish}
+          className="ticket-button"
+        >
+          Finish & Continue on WhatsApp
         </button>
 
       </div>
 
     </div>
+
   );
+
 }

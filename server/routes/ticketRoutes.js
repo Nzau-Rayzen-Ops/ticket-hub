@@ -1,4 +1,4 @@
-﻿const express = require("express");
+const express = require("express");
 
 const {
   createTicket,
@@ -12,7 +12,13 @@ const {
   permanentDeleteTicket,
   getDeletedTickets,
   restoreTicket,
-  lookupTicketByEmailAndEvent
+  lookupTicketByEmailAndEvent,
+
+  createPendingPayment,
+  getPendingPayments,
+  confirmManualPayment,
+  rejectManualPayment
+
 } = require("../controllers/ticketController");
 
 const {
@@ -23,31 +29,41 @@ const router = express.Router();
 
 
 /* =========================
-   PUBLIC TICKET ROUTES
+   CUSTOMER ROUTES
 ========================= */
 
-// Create customer ticket
 router.post(
   "/",
   createTicket
 );
 
 
-// Step 1 — verify QR
+router.post(
+  "/manual-payment",
+  createPendingPayment
+);
+
+
+/* =========================
+   TICKET VERIFICATION
+========================= */
+
 router.post(
   "/verify",
   verifyTicket
 );
 
 
-// Step 2 — verify QR + 6-digit email code
 router.post(
   "/verify-code",
   verifyTicketCode
 );
 
 
-// Lookup ticket
+/* =========================
+   CUSTOMER LOOKUP
+========================= */
+
 router.get(
   "/lookup",
   lookupTicketByEmailAndEvent
@@ -55,14 +71,9 @@ router.get(
 
 
 /* =========================
-   ADMIN TICKET ROUTES
-
-   IMPORTANT:
-   These MUST come before
-   /:ticketId
+   ADMIN DASHBOARD
 ========================= */
 
-// Admin dashboard statistics
 router.get(
   "/admin/dashboard",
   requireAdmin,
@@ -70,7 +81,6 @@ router.get(
 );
 
 
-// Admin recent tickets
 router.get(
   "/admin/recent",
   requireAdmin,
@@ -78,7 +88,35 @@ router.get(
 );
 
 
-// Admin all tickets
+/* =========================
+   MANUAL PAYMENTS
+========================= */
+
+router.get(
+  "/admin/pending-payments",
+  requireAdmin,
+  getPendingPayments
+);
+
+
+router.post(
+  "/admin/confirm-payment",
+  requireAdmin,
+  confirmManualPayment
+);
+
+
+router.delete(
+  "/admin/reject-payment/:ticketId",
+  requireAdmin,
+  rejectManualPayment
+);
+
+
+/* =========================
+   ADMIN TICKETS
+========================= */
+
 router.get(
   "/admin/all",
   requireAdmin,
@@ -86,7 +124,6 @@ router.get(
 );
 
 
-// Deleted tickets
 router.get(
   "/deleted",
   requireAdmin,
@@ -94,7 +131,6 @@ router.get(
 );
 
 
-// Soft delete ticket
 router.delete(
   "/:ticketId/soft",
   requireAdmin,
@@ -102,7 +138,6 @@ router.delete(
 );
 
 
-// Restore ticket
 router.put(
   "/:ticketId/restore",
   requireAdmin,
@@ -110,7 +145,6 @@ router.put(
 );
 
 
-// Permanently delete ticket
 router.delete(
   "/:ticketId/permanent",
   requireAdmin,
@@ -119,11 +153,9 @@ router.delete(
 
 
 /* =========================
-   PUBLIC INDIVIDUAL TICKET
+   PUBLIC TICKET
 ========================= */
 
-// Individual ticket
-// KEEP THIS AFTER ADMIN ROUTES
 router.get(
   "/:ticketId",
   getTicket

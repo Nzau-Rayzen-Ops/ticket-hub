@@ -1,30 +1,20 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import {
   useLocation,
   useNavigate
 } from "react-router-dom";
+
+const TILL_NUMBER = "1625965";
 
 export default function Payment() {
 
   const { state } = useLocation();
   const navigate = useNavigate();
 
-  const [phone, setPhone] = useState(
-    state?.customer?.phone || ""
-  );
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [error, setError] =
-    useState("");
-
-  const [paymentMessage, setPaymentMessage] =
-    useState("");
-
-  /* =========================
-     NO PAYMENT STATE
-  ========================= */
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [receipt, setReceipt] = useState("");
+  const [copied, setCopied] = useState(false);
 
   if (!state) {
 
@@ -32,13 +22,8 @@ export default function Payment() {
       <div className="payment-page">
 
         <div className="payment-header">
-
           <p>PAYMENT</p>
-
-          <h1>
-            No Payment Information
-          </h1>
-
+          <h1>No Payment Information</h1>
         </div>
 
         <div
@@ -49,29 +34,12 @@ export default function Payment() {
           }}
         >
 
-          <p
-            style={{
-              marginBottom: "20px",
-              color: "#666"
-            }}
-          >
+          <p>
             No payment information was found.
-            Please go back and try again.
           </p>
 
           <button
-            onClick={() =>
-              navigate("/events")
-            }
-            style={{
-              padding: "14px 30px",
-              background: "#111",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              fontSize: "16px",
-              cursor: "pointer"
-            }}
+            onClick={() => navigate("/events")}
           >
             Browse Events
           </button>
@@ -91,202 +59,44 @@ export default function Payment() {
     idempotencyKey
   } = state;
 
+
   /* =========================
-     PHONE FORMATTER
+     COPY TILL NUMBER
   ========================= */
 
-  const formatPhone = (value) => {
+  const copyTillNumber = async () => {
 
-    let clean =
-      value.replace(/\D/g, "");
+    try {
 
-    if (clean.startsWith("0")) {
+      await navigator.clipboard.writeText(
+        TILL_NUMBER
+      );
 
-      clean =
-        "254" +
-        clean.substring(1);
+      setCopied(true);
 
-    } else if (
-      clean.startsWith("7") ||
-      clean.startsWith("1")
-    ) {
+      setTimeout(() => {
+        setCopied(false);
+      }, 2500);
 
-      clean =
-        "254" +
-        clean;
+    } catch (error) {
+
+      console.error(
+        "Failed to copy Till number:",
+        error
+      );
+
+      setError(
+        "Unable to copy automatically. Please copy the Till number manually."
+      );
     }
-
-    return clean;
   };
 
-  /* =========================
-     CHECK PAYMENT STATUS
-  ========================= */
-
-  const waitForPayment = async (
-    checkoutRequestID,
-    formattedPhone
-  ) => {
-
-    let attempts = 0;
-
-    const maxAttempts = 40;
-
-    while (attempts < maxAttempts) {
-
-      attempts++;
-
-      try {
-
-        const response =
-          await fetch(
-            `/api/mpesa/transaction/${encodeURIComponent(
-              checkoutRequestID
-            )}`
-          );
-
-        const data =
-          await response.json();
-
-        if (!response.ok) {
-
-          throw new Error(
-            data.message ||
-            "Unable to check payment status."
-          );
-        }
-
-        console.log(
-          "Payment status:",
-          data
-        );
-
-        /* =========================
-           SUCCESS
-        ========================= */
-
-        if (
-          data.transaction?.status === "SUCCESS" ||
-          String(
-            data.transaction?.result_code
-          ) === "0" ||
-          String(
-            data.result?.ResultCode
-          ) === "0"
-        ) {
-
-          setPaymentMessage(
-            "Payment confirmed! Preparing your ticket..."
-          );
-
-          navigate(
-            "/payment/success",
-            {
-              state: {
-
-                event,
-
-                ticket,
-
-                quantity,
-
-                total,
-
-                customer: {
-                  name:
-                    customer.name,
-
-                  email:
-                    customer.email,
-
-                  phone:
-                    formattedPhone
-                },
-
-                idempotencyKey,
-
-                checkoutRequestID
-
-              }
-            }
-          );
-
-          return;
-        }
-
-        /* =========================
-           FAILED
-        ========================= */
-
-        if (
-          data.transaction?.status === "FAILED"
-        ) {
-
-          const description =
-            data.transaction?.result_desc ||
-            data.result?.ResultDesc ||
-            "The payment was not completed.";
-
-          throw new Error(
-            description
-          );
-        }
-
-        /* =========================
-           PENDING
-        ========================= */
-
-        setPaymentMessage(
-          `Waiting for payment confirmation... (${attempts}/${maxAttempts})`
-        );
-
-        await new Promise(
-          (resolve) =>
-            setTimeout(resolve, 3000)
-        );
-
-      } catch (error) {
-
-        console.error(
-          "Payment status error:",
-          error
-        );
-
-        /*
-          Retry temporary status-check
-          errors.
-        */
-
-        if (
-          error.message &&
-          !error.message
-            .toLowerCase()
-            .includes("query") &&
-          !error.message
-            .toLowerCase()
-            .includes("unable to check")
-        ) {
-
-          throw error;
-        }
-
-        await new Promise(
-          (resolve) =>
-            setTimeout(resolve, 3000)
-        );
-      }
-    }
-
-    throw new Error(
-      "Payment timed out. Please check your phone messages before trying again."
-    );
-  };
 
   /* =========================
-     START PAYMENT
+     SUBMIT PAYMENT
   ========================= */
 
-  const handlePayment = async (e) => {
+  const submitPayment = async (e) => {
 
     e.preventDefault();
 
@@ -296,49 +106,28 @@ export default function Payment() {
 
     setError("");
 
-    setPaymentMessage("");
+    const cleanReceipt =
+      receipt.trim().toUpperCase();
 
-    const formattedPhone =
-      formatPhone(phone);
 
-    if (
-      !/^254[0-9]{9}$/.test(
-        formattedPhone
-      )
-    ) {
+    if (!cleanReceipt) {
 
       setError(
-        "Please enter a valid Kenyan M-Pesa number, e.g. 0712345678."
+        "Please enter your M-Pesa receipt number."
       );
 
       return;
     }
 
+
     setLoading(true);
+
 
     try {
 
-      /*
-        Short reference used by the
-        payment provider.
-      */
-
-      const accountReference =
-        `TKT${Date.now()
-          .toString()
-          .slice(-9)}`;
-
-      /*
-        Send payment request to our backend.
-
-        The backend handles SasaPay.
-        The frontend never talks directly
-        to SasaPay.
-      */
-
       const response =
         await fetch(
-          "/api/mpesa/stkpush",
+          "/api/tickets/manual-payment",
           {
             method: "POST",
 
@@ -349,82 +138,99 @@ export default function Payment() {
 
             body: JSON.stringify({
 
-              phoneNumber:
-                formattedPhone,
-
-              amount:
-                Number(total),
-
-              accountReference,
-
-              transactionDesc:
-                "Ticket Payment",
-
               eventId:
-                event?.id || null,
+                event.id,
 
-              idempotencyKey:
-                idempotencyKey || null
+              eventTitle:
+                event.title,
+
+              ticketType:
+                ticket.name,
+
+              price:
+                Number(ticket.price),
+
+              quantity:
+                Number(quantity),
+
+              customerName:
+                customer.name,
+
+              customerEmail:
+                customer.email,
+
+              customerPhone:
+                customer.phone,
+
+              receiptNumber:
+                cleanReceipt,
+
+              idempotencyKey
 
             })
           }
         );
 
+
       const data =
         await response.json();
 
-      if (
-        !response.ok ||
-        !data.success
-      ) {
+
+      if (!response.ok) {
 
         throw new Error(
           data.message ||
-          "Failed to initiate payment."
+          "Unable to submit your payment."
         );
       }
 
-      if (
-        !data.checkoutRequestID
-      ) {
 
-        throw new Error(
-          "Payment provider did not return a checkout request ID."
-        );
-      }
+      navigate(
+        "/payment/success",
+        {
+          state: {
 
-      setPaymentMessage(
-        "Payment prompt sent. Check your phone and complete the payment."
+            event,
+            ticket,
+            quantity,
+            total,
+            customer,
+            idempotencyKey,
+
+            order:
+              data.order,
+
+            receiptNumber:
+              cleanReceipt
+
+          }
+        }
       );
 
-      /*
-        Wait for backend confirmation.
-      */
-
-      await waitForPayment(
-        data.checkoutRequestID,
-        formattedPhone
-      );
 
     } catch (error) {
 
       console.error(
-        "Payment error:",
+        "Manual payment error:",
         error
       );
 
       setError(
         error.message ||
-        "Payment failed. Please try again."
+        "Something went wrong while submitting your payment."
       );
 
-      setPaymentMessage("");
+    } finally {
 
       setLoading(false);
+
     }
+
   };
 
+
   return (
+
     <div className="payment-page">
 
       <div className="payment-header">
@@ -432,24 +238,194 @@ export default function Payment() {
         <p>PAYMENT</p>
 
         <h1>
-          Pay with M-Pesa
+          Complete M-Pesa Payment
         </h1>
+
+        <p>
+          Pay using M-Pesa and submit your
+          receipt number below.
+        </p>
 
       </div>
 
+
       <div className="payment-container">
+
+
+        {/* =========================
+            PAYMENT BOX
+        ========================= */}
 
         <div className="payment-box">
 
           <h2>
-            M-Pesa Payment
+            Pay via M-Pesa
           </h2>
 
-          <p className="payment-instruction">
-            Enter your M-Pesa number below.
-            You will receive a payment prompt
-            on your phone.
-          </p>
+
+          {/* =========================
+              TILL NUMBER
+          ========================= */}
+
+          <div
+            style={{
+              padding: "25px",
+              background: "#f5f5f5",
+              borderRadius: "10px",
+              marginBottom: "25px",
+              textAlign: "center"
+            }}
+          >
+
+            <p
+              style={{
+                marginBottom: "8px"
+              }}
+            >
+              Send payment to Till Number
+            </p>
+
+
+            <strong
+              style={{
+                display: "block",
+                fontSize: "32px",
+                letterSpacing: "2px",
+                marginBottom: "15px"
+              }}
+            >
+              {TILL_NUMBER}
+            </strong>
+
+
+            <button
+              type="button"
+              onClick={copyTillNumber}
+              style={{
+                padding: "12px 20px",
+                border: "none",
+                borderRadius: "7px",
+                cursor: "pointer",
+                fontWeight: "600"
+              }}
+            >
+              {copied
+                ? "? Till Number Copied"
+                : "Copy Till Number"}
+            </button>
+
+          </div>
+
+
+          {/* =========================
+              AMOUNT
+          ========================= */}
+
+          <div
+            style={{
+              padding: "20px",
+              borderRadius: "10px",
+              marginBottom: "25px",
+              textAlign: "center",
+              border: "1px solid #ddd"
+            }}
+          >
+
+            <p
+              style={{
+                marginBottom: "5px"
+              }}
+            >
+              Amount to Pay
+            </p>
+
+            <strong
+              style={{
+                fontSize: "30px"
+              }}
+            >
+              KES{" "}
+              {Number(total).toLocaleString()}
+            </strong>
+
+          </div>
+
+
+          {/* =========================
+              INSTRUCTIONS
+          ========================= */}
+
+          <div
+            style={{
+              marginBottom: "25px"
+            }}
+          >
+
+            <h3>
+              Payment Instructions
+            </h3>
+
+            <ol>
+
+              <li>
+                Open M-Pesa on your phone.
+              </li>
+
+              <li>
+                Select{" "}
+                <strong>
+                  Lipa na M-Pesa
+                </strong>.
+              </li>
+
+              <li>
+                Select{" "}
+                <strong>
+                  Buy Goods and Services
+                </strong>.
+              </li>
+
+              <li>
+                Enter Till Number:{" "}
+                <strong>
+                  {TILL_NUMBER}
+                </strong>
+              </li>
+
+              <li>
+                Enter amount:{" "}
+                <strong>
+                  KES{" "}
+                  {Number(total).toLocaleString()}
+                </strong>
+              </li>
+
+              <li>
+                Enter your M-Pesa PIN.
+              </li>
+
+              <li>
+                Wait for the M-Pesa confirmation
+                message.
+              </li>
+
+              <li>
+                Copy the M-Pesa transaction
+                receipt number.
+              </li>
+
+              <li>
+                Enter the receipt number below.
+              </li>
+
+            </ol>
+
+          </div>
+
+
+          {/* =========================
+              ERROR
+          ========================= */}
 
           {error && (
 
@@ -459,8 +435,7 @@ export default function Payment() {
                 color: "#c00",
                 padding: "12px",
                 borderRadius: "6px",
-                marginBottom: "15px",
-                border: "1px solid #fcc"
+                marginBottom: "15px"
               }}
             >
               {error}
@@ -468,71 +443,86 @@ export default function Payment() {
 
           )}
 
-          {paymentMessage && (
 
-            <div
-              style={{
-                background: "#f5f5f5",
-                color: "#111",
-                padding: "14px",
-                borderRadius: "6px",
-                marginBottom: "15px",
-                border: "1px solid #ddd",
-                lineHeight: "1.5"
-              }}
-            >
-              {paymentMessage}
-            </div>
+          {/* =========================
+              RECEIPT FORM
+          ========================= */}
 
-          )}
-
-          <form
-            onSubmit={handlePayment}
-          >
+          <form onSubmit={submitPayment}>
 
             <label>
 
-              M-Pesa Phone Number
+              M-Pesa Receipt Number
 
               <input
-                type="tel"
-                value={phone}
-                placeholder="0712345678"
+                type="text"
+                placeholder="e.g. QAB123XYZ"
+                value={receipt}
                 onChange={(e) =>
-                  setPhone(e.target.value)
+                  setReceipt(
+                    e.target.value
+                  )
                 }
-                required
                 disabled={loading}
+                required
+                style={{
+                  display: "block",
+                  width: "100%",
+                  marginTop: "8px",
+                  padding: "12px",
+                  boxSizing: "border-box"
+                }}
               />
 
             </label>
+
 
             <button
               type="submit"
               className="mpesa-button"
               disabled={loading}
+              style={{
+                marginTop: "18px"
+              }}
             >
 
               {loading
-                ? "Waiting for payment..."
-                : `Pay KES ${Number(total).toLocaleString()}`}
+                ? "Submitting Payment..."
+                : "I Have Paid"}
 
             </button>
 
           </form>
 
-          <p className="secure-payment">
-            Your payment is securely processed
-            through SasaPay.
+
+          <p
+            style={{
+              marginTop: "20px",
+              fontSize: "13px",
+              color: "#666",
+              lineHeight: "1.5"
+            }}
+          >
+            Your payment will remain pending
+            until the event administrator verifies
+            the M-Pesa transaction. Your ticket will
+            only become valid after payment is
+            confirmed.
           </p>
 
         </div>
+
+
+        {/* =========================
+            ORDER SUMMARY
+        ========================= */}
 
         <div className="payment-summary">
 
           <h2>
             Order Summary
           </h2>
+
 
           <div>
 
@@ -546,6 +536,7 @@ export default function Payment() {
 
           </div>
 
+
           <div className="payment-row">
 
             <span>
@@ -558,6 +549,7 @@ export default function Payment() {
 
           </div>
 
+
           <div className="payment-row">
 
             <span>
@@ -569,6 +561,7 @@ export default function Payment() {
             </strong>
 
           </div>
+
 
           <div className="payment-total">
 
@@ -588,7 +581,7 @@ export default function Payment() {
       </div>
 
     </div>
+
   );
+
 }
-
-

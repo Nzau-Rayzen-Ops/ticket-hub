@@ -6,6 +6,10 @@ const {
   sendTicketEmail
 } = require("../services/emailService");
 
+const {
+  sendTextwaveSMS
+} = require("../services/smsService");
+
 
 /* =========================
    SECURITY HELPERS
@@ -1540,6 +1544,1150 @@ async function lookupTicketByEmailAndEvent(
 }
 
 
+
+/* =========================
+   CREATE PENDING MANUAL PAYMENT
+========================= */
+
+
+async function createPendingPayment(req, res) {
+
+  const client = await pool.connect();
+
+  try {
+
+    const {
+      eventId,
+      eventTitle,
+      ticketType,
+      price,
+      quantity,
+      customerName,
+      customerEmail,
+      customerPhone,
+      receiptNumber,
+      idempotencyKey
+    } = req.body;
+
+
+    /* =========================
+       VALIDATION
+    ========================= */
+
+    if (
+      !eventId ||
+      !ticketType ||
+      price === undefined ||
+      !quantity ||
+      !customerName ||
+      !customerEmail ||
+      !customerPhone ||
+      !receiptNumber
+    ) {
+
+      return res.status(400).json({
+
+        success: false,
+
+        message:
+          "Event, ticket, customer information and M-Pesa receipt number are required."
+
+      });
+
+    }
+
+
+    const ticketQuantity =
+      Number(quantity);
+
+    const ticketPrice =
+      Number(price);
+
+
+    if (
+      !Number.isInteger(ticketQuantity) ||
+      ticketQuantity <= 0
+    ) {
+
+      return res.status(400).json({
+
+        success: false,
+
+        message:
+          "Invalid ticket quantity."
+
+      });
+
+    }
+
+
+    if (
+      !Number.isFinite(ticketPrice) ||
+      ticketPrice < 0
+    ) {
+
+      return res.status(400).json({
+
+        success: false,
+
+        message:
+          "Invalid ticket price."
+
+      });
+
+    }
+
+
+    const cleanEmail =
+      String(customerEmail)
+        .trim()
+        .toLowerCase();
+
+
+    const cleanReceipt =
+      String(receiptNumber)
+        .trim()
+        .toUpperCase();
+
+
+    const finalIdempotencyKey =
+      idempotencyKey ||
+      `${cleanEmail}-${eventId}-${Date.now()}`;
+
+
+    /* =========================
+       CHECK DUPLICATE IDEMPOTENCY
+    ========================= */
+
+    const existing =
+      await client.query(
+        `
+        SELECT *
+        FROM tickets
+        WHERE idempotency_key = $1
+        LIMIT 1
+        `,
+        [finalIdempotencyKey]
+      );
+
+
+    if (existing.rows.length > 0) {
+
+      return res.status(200).json({
+
+        success: true,
+
+        alreadyExists: true,
+
+        message:
+          "Payment order already submitted.",
+
+        order: {
+
+          ticketId:
+            existing.rows[0].ticket_id,
+
+          paymentStatus:
+            existing.rows[0].payment_status,
+
+          receiptNumber:
+            existing.rows[0].mpesa_receipt_number
+
+        },
+
+        ticket:
+          existing.rows[0]
+
+      });
+
+    }
+
+
+    /* =========================
+       PREVENT DUPLICATE RECEIPTS
+    ========================= */
+
+    const receiptCheck =
+      await client.query(
+        `
+        SELECT ticket_id
+        FROM tickets
+        WHERE mpesa_receipt_number = $1
+        LIMIT 1
+        `,
+        [cleanReceipt]
+      );
+
+
+    if (receiptCheck.rows.length > 0) {
+
+      return res.status(409).json({
+
+        success: false,
+
+        message:
+          "This M-Pesa receipt number has already been submitted."
+
+      });
+
+    }
+
+
+    /* =========================
+       START TRANSACTION
+    ========================= */
+
+    await client.query("BEGIN");
+
+
+    /* =========================
+       LOCK EVENT
+    ========================= */
+
+    const eventResult =
+      await client.query(
+        `
+        SELECT *
+        FROM events
+        WHERE id = $1
+        AND status != 'ARCHIVED'
+        FOR UPDATE
+        `,
+        [Number(eventId)]
+      );
+
+
+    if (eventResult.rows.length === 0) {
+
+      await client.query("ROLLBACK");
+
+      return res.status(404).json({
+
+        success: false,
+
+        message:
+          "Event not found."
+
+      });
+
+    }
+
+
+    const event =
+      eventResult.rows[0];
+
+
+    /* =========================
+       CHECK AVAILABLE TICKETS
+    ========================= */
+
+    if (
+      ticketQuantity >
+      Number(event.available_tickets)
+    ) {
+
+      await client.query("ROLLBACK");
+
+      return res.status(400).json({
+
+        success: false,
+
+        message:
+          `Not enough tickets available. Only ${event.available_tickets} ticket(s) remaining.`
+
+      });
+
+    }
+
+
+    /* =========================
+       CREATE TICKET ID
+    ========================= */
+
+    const ticketId =
+      "TKT-" +
+      crypto
+        .randomBytes(12)
+        .toString("hex")
+        .toUpperCase();
+
+
+    /* =========================
+       INSERT PENDING PAYMENT
+    ========================= */
+
+    const insertResult =
+      await client.query(
+        `
+        INSERT INTO tickets
+        (
+          ticket_id,
+          event_id,
+          event_title,
+          ticket_type,
+          price,
+          quantity,
+          customer_name,
+          customer_email,
+          customer_phone,
+          payment_status,
+          ticket_status,
+          idempotency_key,
+          payment_method,
+          mpesa_receipt_number
+        )
+        VALUES
+        (
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
+          $9,
+          'PENDING',
+          'VALID',
+          $10,
+          'MPESA_MANUAL',
+          $11
+        )
+        RETURNING *
+        `,
+        [
+          ticketId,
+          Number(eventId),
+          event.title ||
+            eventTitle ||
+            "Event",
+          ticketType,
+          ticketPrice,
+          ticketQuantity,
+          String(customerName).trim(),
+          cleanEmail,
+          String(customerPhone).trim(),
+          finalIdempotencyKey,
+          cleanReceipt
+        ]
+      );
+
+
+    /* =========================
+       RESERVE INVENTORY
+       
+       IMPORTANT:
+       Pending payments reserve tickets.
+       Confirmation does NOT subtract again.
+       Rejection releases them.
+    ========================= */
+
+    const inventoryResult =
+      await client.query(
+        `
+        UPDATE events
+        SET
+          available_tickets =
+            available_tickets - $1
+        WHERE id = $2
+        AND available_tickets >= $1
+        RETURNING available_tickets
+        `,
+        [
+          ticketQuantity,
+          Number(eventId)
+        ]
+      );
+
+
+    if (inventoryResult.rows.length !== 1) {
+
+      await client.query("ROLLBACK");
+
+      return res.status(409).json({
+
+        success: false,
+
+        message:
+          "Tickets are no longer available."
+
+      });
+
+    }
+
+
+    await client.query("COMMIT");
+
+
+    const ticket =
+      insertResult.rows[0];
+
+
+    /* =========================
+       ADMIN SMS NOTIFICATION
+    ========================= */
+
+    try {
+
+      const adminPhone =
+        process.env.ADMIN_SMS_PHONE;
+
+      if (adminPhone) {
+
+        const amount =
+          Number(ticket.price) *
+          Number(ticket.quantity);
+
+        const smsMessage =
+          `TicketHub Alert: New M-Pesa payment submitted. ` +
+          `Customer: ${ticket.customer_name}. ` +
+          `Amount: KES ${amount}. ` +
+          `Receipt: ${ticket.mpesa_receipt_number}. ` +
+          `Ticket: ${ticket.ticket_id}. ` +
+          `Please check the Admin Dashboard to confirm.`;
+
+        await sendTextwaveSMS(
+          adminPhone,
+          smsMessage
+        );
+
+        console.log(
+          `Admin SMS notification sent for ${ticket.ticket_id}`
+        );
+
+      } else {
+
+        console.warn(
+          "ADMIN_SMS_PHONE is not configured. SMS notification skipped."
+        );
+
+      }
+
+    } catch (smsError) {
+
+      console.error(
+        "Admin SMS notification error:",
+        smsError.message
+      );
+
+    }
+
+
+    return res.status(201).json({
+
+      success: true,
+
+      message:
+        "Payment submitted and is awaiting confirmation.",
+
+      order: {
+
+        ticketId:
+          ticket.ticket_id,
+
+        paymentStatus:
+          ticket.payment_status,
+
+        receiptNumber:
+          ticket.mpesa_receipt_number,
+
+        amount:
+          Number(ticket.price) *
+          Number(ticket.quantity)
+
+      }
+
+    });
+
+
+  } catch (error) {
+
+    try {
+      await client.query("ROLLBACK");
+    } catch (_) {}
+
+
+    console.error(
+      "Create pending payment error:",
+      error
+    );
+
+
+    if (error.code === "23505") {
+
+      return res.status(409).json({
+
+        success: false,
+
+        message:
+          "This payment order already exists."
+
+      });
+
+    }
+
+
+    return res.status(500).json({
+
+      success: false,
+
+      message:
+        error.message ||
+        "Failed to submit payment."
+
+    });
+
+
+  } finally {
+
+    client.release();
+
+  }
+
+}
+
+
+/* =========================
+   GET PENDING PAYMENTS
+========================= */
+
+async function getPendingPayments(req, res) {
+
+  try {
+
+    const result =
+      await pool.query(
+        `
+        SELECT
+          id,
+          ticket_id,
+          event_id,
+          event_title,
+          ticket_type,
+          price,
+          quantity,
+          customer_name,
+          customer_email,
+          customer_phone,
+          payment_status,
+          payment_method,
+          mpesa_receipt_number,
+          created_at
+        FROM tickets
+        WHERE payment_status = 'PENDING'
+        AND deleted_at IS NULL
+        ORDER BY created_at ASC
+        `
+      );
+
+
+    return res.json({
+
+      success: true,
+
+      payments:
+        result.rows
+
+    });
+
+
+  } catch (error) {
+
+    console.error(
+      "Get pending payments error:",
+      error
+    );
+
+
+    return res.status(500).json({
+
+      success: false,
+
+      message:
+        "Failed to load pending payments."
+
+    });
+
+  }
+
+}
+
+
+/* =========================
+   CONFIRM MANUAL PAYMENT
+========================= */
+
+async function confirmManualPayment(req, res) {
+
+  const client =
+    await pool.connect();
+
+
+  try {
+
+    const {
+      ticketId
+    } = req.body;
+
+
+    if (!ticketId) {
+
+      return res.status(400).json({
+
+        success: false,
+
+        message:
+          "Ticket ID is required."
+
+      });
+
+    }
+
+
+    await client.query("BEGIN");
+
+
+    /* =========================
+       LOCK PENDING TICKET
+    ========================= */
+
+    const ticketResult =
+      await client.query(
+        `
+        SELECT *
+        FROM tickets
+        WHERE ticket_id = $1
+        AND deleted_at IS NULL
+        FOR UPDATE
+        `,
+        [String(ticketId)]
+      );
+
+
+    if (ticketResult.rows.length === 0) {
+
+      await client.query("ROLLBACK");
+
+      return res.status(404).json({
+
+        success: false,
+
+        message:
+          "Payment order not found."
+
+      });
+
+    }
+
+
+    const ticket =
+      ticketResult.rows[0];
+
+
+    /* =========================
+       ALREADY PAID
+    ========================= */
+
+    if (
+      ticket.payment_status === "PAID"
+    ) {
+
+      await client.query("ROLLBACK");
+
+      return res.status(409).json({
+
+        success: false,
+
+        message:
+          "This payment has already been confirmed."
+
+      });
+
+    }
+
+
+    if (
+      ticket.payment_status !== "PENDING"
+    ) {
+
+      await client.query("ROLLBACK");
+
+      return res.status(400).json({
+
+        success: false,
+
+        message:
+          `Payment cannot be confirmed because its current status is ${ticket.payment_status}.`
+
+      });
+
+    }
+
+
+    /* =========================
+       LOCK EVENT
+    ========================= */
+
+    const eventResult =
+      await client.query(
+        `
+        SELECT *
+        FROM events
+        WHERE id = $1
+        AND status != 'ARCHIVED'
+        FOR UPDATE
+        `,
+        [ticket.event_id]
+      );
+
+
+    if (eventResult.rows.length === 0) {
+
+      await client.query("ROLLBACK");
+
+      return res.status(404).json({
+
+        success: false,
+
+        message:
+          "The event no longer exists."
+
+      });
+
+    }
+
+
+    const event =
+      eventResult.rows[0];
+
+    /* =========================
+       GENERATE QR TOKEN
+    ========================= */
+
+    const qrToken =
+      generateRandomToken(32);
+
+
+    const qrTokenHash =
+      hashValue(qrToken);
+
+
+    /* =========================
+       MARK PAYMENT PAID
+    ========================= */
+
+    const adminEmail =
+      req.admin?.email ||
+      req.user?.email ||
+      "admin";
+
+
+    const updateResult =
+      await client.query(
+        `
+        UPDATE tickets
+        SET
+          payment_status = 'PAID',
+          ticket_status = 'VALID',
+          payment_method = 'MPESA_MANUAL',
+          payment_confirmed_at = CURRENT_TIMESTAMP,
+          payment_confirmed_by = $1,
+          qr_token_hash = $2,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3
+        AND payment_status = 'PENDING'
+        RETURNING *
+        `,
+        [
+          adminEmail,
+          qrTokenHash,
+          ticket.id
+        ]
+      );
+
+
+    if (updateResult.rows.length !== 1) {
+
+      await client.query("ROLLBACK");
+
+      return res.status(409).json({
+
+        success: false,
+
+        message:
+          "Payment could not be confirmed because its status changed."
+
+      });
+
+    }
+
+
+    /* =========================
+       INVENTORY
+       
+       Inventory was already reserved
+       when the pending payment was created.
+       
+       DO NOT reduce it again here.
+    ========================= */
+
+    await client.query("COMMIT");
+
+
+    const confirmedTicket =
+      updateResult.rows[0];
+
+
+    /* =========================
+       SEND TICKET EMAIL
+    ========================= */
+
+    let emailSent = false;
+
+
+    try {
+
+      await sendTicketEmail({
+
+        ...confirmedTicket,
+
+        qrToken
+
+      });
+
+      emailSent = true;
+
+
+    } catch (emailError) {
+
+      console.error(
+        "Confirmed ticket email error:",
+        emailError
+      );
+
+    }
+
+
+    return res.json({
+
+      success: true,
+
+      message:
+        emailSent
+          ? "Payment confirmed. Ticket activated and email sent."
+          : "Payment confirmed and ticket activated, but email could not be sent.",
+
+      emailSent,
+
+      ticket: {
+
+        ticketId:
+          confirmedTicket.ticket_id,
+
+        paymentStatus:
+          confirmedTicket.payment_status,
+
+        ticketStatus:
+          confirmedTicket.ticket_status,
+
+        receiptNumber:
+          confirmedTicket.mpesa_receipt_number
+
+      }
+
+    });
+
+
+  } catch (error) {
+
+    try {
+      await client.query("ROLLBACK");
+    } catch (_) {}
+
+
+    console.error(
+      "Confirm manual payment error:",
+      error
+    );
+
+
+    return res.status(500).json({
+
+      success: false,
+
+      message:
+        error.message ||
+        "Failed to confirm payment."
+
+    });
+
+
+  } finally {
+
+    client.release();
+
+  }
+
+}
+
+
+/* =========================
+   REJECT MANUAL PAYMENT
+========================= */
+
+
+async function rejectManualPayment(req, res) {
+
+  const client =
+    await pool.connect();
+
+  try {
+
+    const {
+      ticketId
+    } = req.params;
+
+
+    if (!ticketId) {
+
+      return res.status(400).json({
+
+        success: false,
+
+        message:
+          "Ticket ID is required."
+
+      });
+
+    }
+
+
+    await client.query("BEGIN");
+
+
+    /* =========================
+       LOCK PENDING TICKET
+    ========================= */
+
+    const ticketResult =
+      await client.query(
+        `
+        SELECT *
+        FROM tickets
+        WHERE ticket_id = $1
+        AND payment_status = 'PENDING'
+        AND deleted_at IS NULL
+        FOR UPDATE
+        `,
+        [String(ticketId)]
+      );
+
+
+    if (ticketResult.rows.length === 0) {
+
+      await client.query("ROLLBACK");
+
+      return res.status(404).json({
+
+        success: false,
+
+        message:
+          "Pending payment not found."
+
+      });
+
+    }
+
+
+    const ticket =
+      ticketResult.rows[0];
+
+
+    /* =========================
+       LOCK EVENT
+    ========================= */
+
+    const eventResult =
+      await client.query(
+        `
+        SELECT *
+        FROM events
+        WHERE id = $1
+        AND status != 'ARCHIVED'
+        FOR UPDATE
+        `,
+        [Number(ticket.event_id)]
+      );
+
+
+    if (eventResult.rows.length === 0) {
+
+      await client.query("ROLLBACK");
+
+      return res.status(404).json({
+
+        success: false,
+
+        message:
+          "The event no longer exists."
+
+      });
+
+    }
+
+
+    /* =========================
+       RELEASE RESERVED TICKETS
+       
+       createPendingPayment()
+       reserved these tickets.
+       
+       Because the payment is being
+       rejected, give them back.
+    ========================= */
+
+    const inventoryResult =
+      await client.query(
+        `
+        UPDATE events
+        SET
+          available_tickets =
+            available_tickets + $1
+        WHERE id = $2
+        RETURNING available_tickets
+        `,
+        [
+          Number(ticket.quantity),
+          Number(ticket.event_id)
+        ]
+      );
+
+
+    if (inventoryResult.rows.length !== 1) {
+
+      await client.query("ROLLBACK");
+
+      return res.status(409).json({
+
+        success: false,
+
+        message:
+          "Tickets could not be released."
+
+      });
+
+    }
+
+
+    /* =========================
+       MARK PAYMENT FAILED
+    ========================= */
+
+    const updateResult =
+      await client.query(
+        `
+        UPDATE tickets
+        SET
+          payment_status = 'FAILED',
+          ticket_status = 'CANCELLED',
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+        AND payment_status = 'PENDING'
+        RETURNING *
+        `,
+        [ticket.id]
+      );
+
+
+    if (updateResult.rows.length !== 1) {
+
+      await client.query("ROLLBACK");
+
+      return res.status(409).json({
+
+        success: false,
+
+        message:
+          "Payment could not be rejected because its status changed."
+
+      });
+
+    }
+
+
+    await client.query("COMMIT");
+
+
+    const rejectedTicket =
+      updateResult.rows[0];
+
+
+    return res.json({
+
+      success: true,
+
+      message:
+        "Payment rejected and reserved tickets released.",
+
+      ticket: {
+
+        ticketId:
+          rejectedTicket.ticket_id,
+
+        paymentStatus:
+          rejectedTicket.payment_status,
+
+        ticketStatus:
+          rejectedTicket.ticket_status,
+
+        releasedQuantity:
+          Number(rejectedTicket.quantity),
+
+        availableTickets:
+          Number(
+            inventoryResult.rows[0]
+              .available_tickets
+          )
+
+      }
+
+    });
+
+
+  } catch (error) {
+
+    try {
+      await client.query("ROLLBACK");
+    } catch (_) {}
+
+
+    console.error(
+      "Reject manual payment error:",
+      error
+    );
+
+
+    return res.status(500).json({
+
+      success: false,
+
+      message:
+        error.message ||
+        "Failed to reject payment."
+
+    });
+
+
+  } finally {
+
+    client.release();
+
+  }
+
+}
+
+
+
 /* =========================
    EXPORTS
 ========================= */
@@ -1568,5 +2716,12 @@ module.exports = {
 
   restoreTicket,
 
-  lookupTicketByEmailAndEvent
+  lookupTicketByEmailAndEvent,
+
+  createPendingPayment,
+  getPendingPayments,
+  confirmManualPayment,
+  rejectManualPayment
 };
+
+
