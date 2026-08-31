@@ -50,8 +50,7 @@ export default function AdminDashboard() {
             "/api/tickets/admin/dashboard",
             {
               method: "GET",
-              credentials:
-                "include"
+              credentials: "include"
             }
           ),
 
@@ -59,8 +58,7 @@ export default function AdminDashboard() {
             "/api/tickets/admin/recent",
             {
               method: "GET",
-              credentials:
-                "include"
+              credentials: "include"
             }
           )
 
@@ -164,6 +162,63 @@ export default function AdminDashboard() {
   }, []);
 
 
+  function openGmail(ticket) {
+
+    const email =
+      ticket.customer_email ||
+      "";
+
+
+    const ticketId =
+      ticket.ticket_id ||
+      "Ticket";
+
+
+    const eventTitle =
+      ticket.event_title ||
+      "your event";
+
+
+    const subject =
+      `Ticket ${ticketId} - ${eventTitle}`;
+
+
+    const body =
+      `Hello ${ticket.customer_name || "there"},
+
+Please find your TicketHub ticket details below.
+
+Ticket ID: ${ticketId}
+Event: ${eventTitle}
+Ticket Type: ${ticket.ticket_type || "Standard"}
+Quantity: ${ticket.quantity || 1}
+Payment Status: ${ticket.payment_status || "PAID"}
+
+Please attach the downloaded PDF ticket to this email before sending.
+
+Please present your ticket QR code at the entrance.
+
+Thank you,
+TicketHub`;
+
+
+    const gmailUrl =
+      "https://mail.google.com/mail/?view=cm" +
+      "&fs=1" +
+      `&to=${encodeURIComponent(email)}` +
+      `&su=${encodeURIComponent(subject)}` +
+      `&body=${encodeURIComponent(body)}`;
+
+
+    window.open(
+      gmailUrl,
+      "_blank",
+      "noopener,noreferrer"
+    );
+
+  }
+
+
   return (
 
     <div className="admin-page">
@@ -190,17 +245,21 @@ export default function AdminDashboard() {
             Dashboard
           </Link>
 
+
           <Link to="/admin/events">
             Events
           </Link>
+
 
           <Link to="/admin/orders">
             Orders
           </Link>
 
+
           <Link to="/admin/tickets">
             Tickets
           </Link>
+
 
           <Link to="/scanner">
             Scanner
@@ -213,7 +272,7 @@ export default function AdminDashboard() {
           to="/"
           className="admin-back"
         >
-          ? Back to website
+          ← Back to website
         </Link>
 
       </aside>
@@ -229,9 +288,11 @@ export default function AdminDashboard() {
               ADMIN DASHBOARD
             </p>
 
+
             <h1>
               Overview
             </h1>
+
 
             <p>
               Manage your events,
@@ -259,11 +320,15 @@ export default function AdminDashboard() {
               Total Tickets
             </span>
 
+
             <strong>
+
               {loading
-                ? "�"
+                ? "..."
                 : stats.totalTickets}
+
             </strong>
+
 
             <small>
               Tickets sold
@@ -278,16 +343,18 @@ export default function AdminDashboard() {
               Total Revenue
             </span>
 
+
             <strong>
 
               {loading
-                ? "�"
+                ? "..."
                 : `KSh ${Number(
                     stats.totalRevenue ||
-                      0
+                    0
                   ).toLocaleString()}`}
 
             </strong>
+
 
             <small>
               From ticket sales
@@ -302,11 +369,15 @@ export default function AdminDashboard() {
               Valid Tickets
             </span>
 
+
             <strong>
+
               {loading
-                ? "�"
+                ? "..."
                 : stats.validTickets}
+
             </strong>
+
 
             <small>
               Available for entry
@@ -321,11 +392,15 @@ export default function AdminDashboard() {
               Used Tickets
             </span>
 
+
             <strong>
+
               {loading
-                ? "�"
+                ? "..."
                 : stats.usedTickets}
+
             </strong>
+
 
             <small>
               Already scanned
@@ -346,6 +421,7 @@ export default function AdminDashboard() {
                 TICKETS
               </p>
 
+
               <h2>
                 Recent Tickets
               </h2>
@@ -354,7 +430,7 @@ export default function AdminDashboard() {
 
 
             <Link to="/admin/tickets">
-              View all ?
+              View all →
             </Link>
 
           </div>
@@ -375,13 +451,15 @@ export default function AdminDashboard() {
             <div className="admin-empty">
 
               <div className="admin-empty-icon">
-                ??
+                🎟
               </div>
+
 
               <h3>
                 Ticket activity will
                 appear here
               </h3>
+
 
               <p>
                 Once customers purchase
@@ -422,6 +500,7 @@ export default function AdminDashboard() {
                         }
                       </strong>
 
+
                       <span>
                         {
                           ticket.event_title
@@ -438,6 +517,7 @@ export default function AdminDashboard() {
                           ticket.customer_name
                         }
                       </strong>
+
 
                       <span>
                         {
@@ -456,10 +536,11 @@ export default function AdminDashboard() {
 
                         {Number(
                           ticket.price *
-                            ticket.quantity
+                          ticket.quantity
                         ).toLocaleString()}
 
                       </strong>
+
 
                       <span>
 
@@ -467,7 +548,7 @@ export default function AdminDashboard() {
                           ticket.ticket_type
                         }
 
-                        {" � "}
+                        {" • "}
 
                         {
                           ticket.quantity
@@ -494,6 +575,28 @@ export default function AdminDashboard() {
                         }
 
                       </span>
+
+                    </div>
+
+
+                    <div
+                      style={{
+                        marginLeft:
+                          "auto"
+                      }}
+                    >
+
+                      <button
+                        type="button"
+                        className="admin-secondary-button"
+                        onClick={() =>
+                          openGmail(
+                            ticket
+                          )
+                        }
+                      >
+                        ✉ Open Gmail
+                      </button>
 
                     </div>
 

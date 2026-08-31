@@ -1,4 +1,4 @@
-import {
+﻿import {
   useEffect,
   useState
 } from "react";
@@ -8,7 +8,6 @@ import {
 } from "react-router-dom";
 
 import jsPDF from "jspdf";
-
 import QRCode from "qrcode";
 
 
@@ -19,18 +18,15 @@ export default function Tickets() {
     setTickets
   ] = useState([]);
 
-
   const [
     loading,
     setLoading
   ] = useState(true);
 
-
   const [
     error,
     setError
   ] = useState("");
-
 
   const [
     actionLoading,
@@ -45,7 +41,6 @@ export default function Tickets() {
       setLoading(true);
       setError("");
 
-
       const response =
         await fetch(
           "/api/tickets/admin/all",
@@ -55,10 +50,8 @@ export default function Tickets() {
           }
         );
 
-
       const data =
         await response.json();
-
 
       if (!response.ok) {
 
@@ -69,13 +62,11 @@ export default function Tickets() {
 
       }
 
-
       setTickets(
         Array.isArray(data)
           ? data
           : []
       );
-
 
     } catch (err) {
 
@@ -88,7 +79,6 @@ export default function Tickets() {
         err.message ||
         "Failed to load tickets."
       );
-
 
     } finally {
 
@@ -110,51 +100,6 @@ export default function Tickets() {
 
     try {
 
-      const ticketId =
-        ticket.ticket_id ||
-        "TICKET";
-
-
-      const customerName =
-        ticket.customer_name ||
-        "Customer";
-
-
-      const eventTitle =
-        ticket.event_title ||
-        "Event";
-
-
-      const ticketType =
-        ticket.ticket_type ||
-        "Standard";
-
-
-      const quantity =
-        Number(ticket.quantity || 1);
-
-
-      const price =
-        Number(ticket.price || 0);
-
-
-      const paymentStatus =
-        ticket.payment_status ||
-        "PAID";
-
-
-      const ticketStatus =
-        ticket.ticket_status ||
-        "VALID";
-
-
-      const qrToken =
-        ticket.qr_token ||
-        ticket.qrToken ||
-        ticket.token ||
-        "";
-
-
       const pdf =
         new jsPDF({
           orientation: "portrait",
@@ -163,8 +108,62 @@ export default function Tickets() {
         });
 
 
+      const ticketId =
+        ticket.ticket_id ||
+        ticket.ticketId ||
+        "TICKET";
+
+
+      const customerName =
+        ticket.customer_name ||
+        "Customer";
+
+
+      const customerEmail =
+        ticket.customer_email ||
+        "";
+
+
+      const eventTitle =
+        ticket.event_title ||
+        "TicketHub Event";
+
+
+      const ticketType =
+        ticket.ticket_type ||
+        "Standard";
+
+
+      const quantity =
+        Number(
+          ticket.quantity || 1
+        );
+
+
+      const price =
+        Number(
+          ticket.price || 0
+        );
+
+
+      const total =
+        price * quantity;
+
+
+      const status =
+        ticket.ticket_status ||
+        "VALID";
+
+
+      const qrToken =
+        ticket.qr_token ||
+        ticket.qrToken ||
+        ticket.qr_token_hash ||
+        "";
+
+
       /* =========================
-         HEADER
+         PDF HEADER
       ========================= */
 
       pdf.setFont(
@@ -172,7 +171,7 @@ export default function Tickets() {
         "bold"
       );
 
-      pdf.setFontSize(24);
+      pdf.setFontSize(26);
 
       pdf.text(
         "TicketHub",
@@ -181,15 +180,15 @@ export default function Tickets() {
       );
 
 
+      pdf.setFontSize(10);
+
       pdf.setFont(
         "helvetica",
         "normal"
       );
 
-      pdf.setFontSize(10);
-
       pdf.text(
-        "OFFICIAL EVENT ENTRY TICKET",
+        "OFFICIAL EVENT TICKET",
         20,
         32
       );
@@ -204,7 +203,7 @@ export default function Tickets() {
 
 
       /* =========================
-         EVENT
+         EVENT INFORMATION
       ========================= */
 
       pdf.setFont(
@@ -229,134 +228,57 @@ export default function Tickets() {
       pdf.setFontSize(11);
 
       pdf.text(
-        "Ticket ID:",
+        `Ticket ID: ${ticketId}`,
         20,
-        65
-      );
-
-
-      pdf.setFont(
-        "helvetica",
-        "bold"
+        63
       );
 
       pdf.text(
-        ticketId,
-        55,
-        65
+        `Customer: ${customerName}`,
+        20,
+        71
       );
-
-
-      /* =========================
-         CUSTOMER DETAILS
-      ========================= */
-
-      pdf.setFont(
-        "helvetica",
-        "bold"
-      );
-
-      pdf.setFontSize(12);
 
       pdf.text(
-        "Customer Details",
+        `Email: ${customerEmail}`,
         20,
-        82
+        79
       );
-
-
-      pdf.setFont(
-        "helvetica",
-        "normal"
-      );
-
-      pdf.setFontSize(11);
-
-      pdf.text(
-        `Name: ${customerName}`,
-        20,
-        91
-      );
-
-
-      pdf.text(
-        `Email: ${ticket.customer_email || "N/A"}`,
-        20,
-        99
-      );
-
-
-      pdf.text(
-        `Phone: ${ticket.customer_phone || "N/A"}`,
-        20,
-        107
-      );
-
-
-      /* =========================
-         TICKET DETAILS
-      ========================= */
-
-      pdf.setFont(
-        "helvetica",
-        "bold"
-      );
-
-      pdf.setFontSize(12);
-
-      pdf.text(
-        "Ticket Details",
-        20,
-        123
-      );
-
-
-      pdf.setFont(
-        "helvetica",
-        "normal"
-      );
-
-      pdf.setFontSize(11);
 
       pdf.text(
         `Ticket Type: ${ticketType}`,
         20,
-        132
+        87
       );
-
 
       pdf.text(
         `Quantity: ${quantity}`,
         20,
-        140
+        95
+      );
+
+      pdf.text(
+        `Total Paid: KSh ${total.toLocaleString()}`,
+        20,
+        103
       );
 
 
-      pdf.text(
-        `Price: KSh ${price.toLocaleString()}`,
-        20,
-        148
+      /* =========================
+         STATUS
+      ========================= */
+
+      pdf.setFont(
+        "helvetica",
+        "bold"
       );
 
+      pdf.setFontSize(12);
 
       pdf.text(
-        `Total: KSh ${(price * quantity).toLocaleString()}`,
+        `Status: ${status}`,
         20,
-        156
-      );
-
-
-      pdf.text(
-        `Payment Status: ${paymentStatus}`,
-        20,
-        164
-      );
-
-
-      pdf.text(
-        `Ticket Status: ${ticketStatus}`,
-        20,
-        172
+        115
       );
 
 
@@ -384,17 +306,12 @@ export default function Tickets() {
           );
 
 
-        pdf.setFont(
-          "helvetica",
-          "bold"
-        );
-
         pdf.setFontSize(14);
 
         pdf.text(
           "ENTRY QR CODE",
           20,
-          190
+          132
         );
 
 
@@ -402,25 +319,19 @@ export default function Tickets() {
           qrImage,
           "PNG",
           20,
-          197,
-          65,
-          65
+          140,
+          70,
+          70
         );
-
 
       } else {
 
-        pdf.setFont(
-          "helvetica",
-          "normal"
-        );
-
-        pdf.setFontSize(10);
+        pdf.setFontSize(11);
 
         pdf.text(
           "QR code unavailable for this ticket.",
           20,
-          195
+          145
         );
 
       }
@@ -440,7 +351,7 @@ export default function Tickets() {
       pdf.text(
         "Entry Instructions",
         105,
-        198
+        140
       );
 
 
@@ -454,33 +365,30 @@ export default function Tickets() {
       pdf.text(
         "1. Present this ticket at the entrance.",
         105,
-        208
+        150
       );
-
 
       pdf.text(
         "2. Present your QR code for scanning.",
         105,
-        216
+        158
       );
-
 
       pdf.text(
         "3. You may also be asked for your",
         105,
-        224
+        166
       );
-
 
       pdf.text(
         "6-digit verification code.",
         105,
-        232
+        174
       );
 
 
       /* =========================
-         ARRIVAL
+         EVENT ARRIVAL
       ========================= */
 
       pdf.setFont(
@@ -491,7 +399,7 @@ export default function Tickets() {
       pdf.text(
         "Gala Arrival:",
         105,
-        245
+        190
       );
 
 
@@ -503,7 +411,7 @@ export default function Tickets() {
       pdf.text(
         "5:00 PM - 5:45 PM",
         105,
-        253
+        198
       );
 
 
@@ -513,9 +421,9 @@ export default function Tickets() {
 
       pdf.line(
         20,
-        270,
+        225,
         190,
-        270
+        225
       );
 
 
@@ -524,14 +432,13 @@ export default function Tickets() {
       pdf.text(
         "Keep this ticket and your verification code private.",
         20,
-        280
+        235
       );
-
 
       pdf.text(
         "TicketHub - Official Event Entry Ticket",
         20,
-        287
+        242
       );
 
 
@@ -547,7 +454,6 @@ export default function Tickets() {
         err
       );
 
-
       alert(
         "Could not generate the ticket PDF."
       );
@@ -562,7 +468,6 @@ export default function Tickets() {
     const email =
       ticket.customer_email ||
       "";
-
 
     const ticketId =
       ticket.ticket_id ||
@@ -581,17 +486,18 @@ export default function Tickets() {
     const body =
       `Hello ${ticket.customer_name || "there"},
 
+
 Please find your TicketHub ticket details below.
+
 
 Ticket ID: ${ticketId}
 Event: ${eventTitle}
 Ticket Type: ${ticket.ticket_type || "Standard"}
 Quantity: ${ticket.quantity || 1}
-Payment Status: ${ticket.payment_status || "PAID"}
 
-Please attach the downloaded PDF ticket to this email before sending.
 
 Please present your ticket QR code at the entrance.
+
 
 Thank you,
 TicketHub`;
@@ -716,16 +622,13 @@ TicketHub`;
             Dashboard
           </Link>
 
-
           <Link to="/admin/events">
             Events
           </Link>
 
-
           <Link to="/admin/orders">
             Orders
           </Link>
-
 
           <Link
             to="/admin/tickets"
@@ -734,11 +637,9 @@ TicketHub`;
             Tickets
           </Link>
 
-
           <Link to="/admin/deleted-tickets">
             🗑 Deleted
           </Link>
-
 
           <Link to="/scanner">
             Scanner
@@ -767,11 +668,9 @@ TicketHub`;
               TICKET MANAGEMENT
             </p>
 
-
             <h1>
               Tickets
             </h1>
-
 
             <p>
               View, download and manage
@@ -792,7 +691,6 @@ TicketHub`;
               <p className="admin-label">
                 TICKETS
               </p>
-
 
               <h2>
                 All Tickets
@@ -832,7 +730,6 @@ TicketHub`;
                 Unable to load tickets
               </h3>
 
-
               <p>
                 {error}
               </p>
@@ -858,11 +755,9 @@ TicketHub`;
                 🎟
               </div>
 
-
               <h3>
                 No tickets found
               </h3>
-
 
               <p>
                 Purchased tickets will
@@ -901,7 +796,6 @@ TicketHub`;
                       Ticket
                     </th>
 
-
                     <th
                       style={{
                         textAlign: "left",
@@ -910,7 +804,6 @@ TicketHub`;
                     >
                       Customer
                     </th>
-
 
                     <th
                       style={{
@@ -921,7 +814,6 @@ TicketHub`;
                       Event
                     </th>
 
-
                     <th
                       style={{
                         textAlign: "left",
@@ -930,7 +822,6 @@ TicketHub`;
                     >
                       Type
                     </th>
-
 
                     <th
                       style={{
@@ -941,7 +832,6 @@ TicketHub`;
                       Quantity
                     </th>
 
-
                     <th
                       style={{
                         textAlign: "left",
@@ -950,7 +840,6 @@ TicketHub`;
                     >
                       Status
                     </th>
-
 
                     <th
                       style={{
@@ -1004,9 +893,7 @@ TicketHub`;
                             }
                           </strong>
 
-
                           <br />
-
 
                           <span>
                             {
