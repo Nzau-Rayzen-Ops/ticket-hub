@@ -1,10 +1,14 @@
 ﻿const crypto = require("crypto");
-const pool = require("../config/db");
-const { sendVerificationCodeEmail } = require("./emailService");
 
-/* =========================
-   SECURITY
-========================= */
+const pool = require("../config/db");
+const {
+  sendVerificationCodeEmail
+} = require("./emailService");
+
+
+/* =========================================================
+   SECURITY HELPERS
+========================================================= */
 
 function hashValue(value) {
   return crypto
@@ -13,15 +17,17 @@ function hashValue(value) {
     .digest("hex");
 }
 
+
 function generateCode() {
   return crypto
     .randomInt(100000, 1000000)
     .toString();
 }
 
-/* =========================
+
+/* =========================================================
    NAIROBI DATE
-========================= */
+========================================================= */
 
 function getNairobiDate() {
   return new Intl.DateTimeFormat(
@@ -35,9 +41,10 @@ function getNairobiDate() {
   ).format(new Date());
 }
 
-/* =========================
+
+/* =========================================================
    NAIROBI END OF DAY
-========================= */
+========================================================= */
 
 function getNairobiEndOfDay() {
   const now = new Date();
@@ -61,7 +68,7 @@ function getNairobiEndOfDay() {
   }
 
   /*
-    Africa/Nairobi is UTC+3 and does not use daylight saving time.
+    Nairobi is UTC+3.
 
     23:59:59.999 Nairobi
     =
@@ -81,9 +88,10 @@ function getNairobiEndOfDay() {
   );
 }
 
-/* =========================
-   GENERATE EVENT CODES
-========================= */
+
+/* =========================================================
+   GENERATE VERIFICATION CODES FOR TODAY'S EVENTS
+========================================================= */
 
 async function generateEventVerificationCodes() {
   const today = getNairobiDate();
@@ -97,7 +105,9 @@ async function generateEventVerificationCodes() {
       `
       SELECT DISTINCT
         e.id,
-        e.title
+        e.title,
+        e.date,
+        e.status
       FROM events e
       INNER JOIN tickets t
         ON t.event_id = e.id
@@ -105,6 +115,7 @@ async function generateEventVerificationCodes() {
       AND e.status != 'ARCHIVED'
       AND t.payment_status = 'PAID'
       AND t.deleted_at IS NULL
+      ORDER BY e.id
       `,
       [today]
     );
@@ -117,240 +128,219 @@ async function generateEventVerificationCodes() {
       return;
     }
 
-    for (const event of eventResult.rows) {
-
-      try {
-
-        await generateCodeForEvent(event);
-
-      } catch (error) {
-
-        console.error(
-          `Failed generating code for event ${event.id}:`,
-          error
-        );
-
-      }
-    }
-
-  } catch (globalQueryError) {
-
-    console.error(
-      "Fatal scheduler query mismatch error encountered:",
-      globalQueryError.message
+    console.log(
+      `Found ${eventResult.rows.length} event(s) with paid tickets for ${today}.`
     );
 
+    for (const event of eventResult.rows) {
+      try {
+        await generateCodeForEvent(event);
+      } catch (error) {
+        console.error(
+          `Failed generating verification code for event ${event.id}:`,
+          error
+        );
+      }
+    }
+  } catch (error) {
+    console.error(
+      "Verification-code event query failed:",
+      error
+    );
   }
 }
 
-/* =========================
-   GENERATE CODE FOR EVENT
-========================= */
+
+/* =========================================================
+   GENERATE CODE FOR ONE EVENT
+========================================================= */
 
 async function generateCodeForEvent(event) {
-
   const client = await pool.connect();
 
   try {
-
     await client.query("BEGIN");
 
-    const eventIdInt =
-      parseInt(event.id, 10);
+    const eventId = Number(event.id);
 
-    if (Number.isNaN(eventIdInt)) {
-
+    if (!Number.isInteger(eventId) || eventId <= 0) {
       throw new Error(
         `Invalid event ID: ${event.id}`
       );
-
     }
 
-    /* =========================
-       CHECK EXISTING CODE
-    ========================= */
 
-    const existingResult =
-      await client.query(
-        `
-        SELECT
-          verification_code_hash,
-          verification_code_expires_at
-        FROM tickets
-        WHERE event_id = $1
-        AND payment_status = 'PAID'
-        AND deleted_at IS NULL
-        AND verification_code_hash IS NOT NULL
-        AND verification_code_expires_at IS NOT NULL
-        LIMIT 1
-        `,
-        [eventIdInt]
-      );
+    /* =====================================================
+       LOCK ONE PAID TICKET FOR THIS EVENT
 
-    const existing =
-      existingResult.rows[0];
+       This prevents two scheduler/manual executions from
+       generating different codes at the same time.
+    ===================================================== */
+
+    const existingResult = await client.query(
+      `
+      SELECT
+        id,
+        verification_code_hash,
+        verification_code_expires_at
+      FROM tickets
+      WHERE event_id = $1
+      AND payment_status = 'PAID'
+      AND deleted_at IS NULL
+      AND verification_code_hash IS NOT NULL
+      AND verification_code_expires_at IS NOT NULL
+      ORDER BY id
+      LIMIT 1
+      FOR UPDATE
+      `,
+      [eventId]
+    );
+
+    const existing = existingResult.rows[0];
 
     if (existing) {
+      const expiresAt = new Date(
+        existing.verification_code_expires_at
+      );
 
-      const expiresAt =
-        new Date(
-          existing.verification_code_expires_at
-        );
-
-      if (expiresAt > new Date()) {
-
+      if (
+        !Number.isNaN(expiresAt.getTime()) &&
+        expiresAt > new Date()
+      ) {
         await client.query("COMMIT");
 
         console.log(
-          `Verification code already exists for event ${eventIdInt}.`
+          `Valid verification code already exists for event ${eventId}.`
         );
 
         return;
-
       }
-
     }
 
-    /* =========================
-       GENERATE NEW CODE
-    ========================= */
 
-    const code =
-      generateCode();
+    /* =====================================================
+       GENERATE NEW EVENT CODE
+    ===================================================== */
 
-    const codeHash =
-      hashValue(code);
+    const code = generateCode();
 
-    const expiry =
-      getNairobiEndOfDay();
+    const codeHash = hashValue(code);
 
-    /* =========================
-       STORE HASH
-    ========================= */
+    const expiry = getNairobiEndOfDay();
 
-    const updateResult =
-      await client.query(
-        `
-        UPDATE tickets
-        SET
-          verification_code_hash = $1,
-          verification_code_expires_at = $2,
-          verification_attempts = 0,
-          verification_code_sent_at = NULL,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE event_id = $3
-        AND payment_status = 'PAID'
-        AND deleted_at IS NULL
-        `,
-        [
-          codeHash,
-          expiry,
-          eventIdInt
-        ]
-      );
+
+    /* =====================================================
+       APPLY SAME CODE HASH TO ALL PAID TICKETS
+    ===================================================== */
+
+    const updateResult = await client.query(
+      `
+      UPDATE tickets
+      SET
+        verification_code_hash = $1,
+        verification_code_expires_at = $2,
+        verification_attempts = 0,
+        verification_code_sent_at = NULL,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE event_id = $3
+      AND payment_status = 'PAID'
+      AND deleted_at IS NULL
+      `,
+      [
+        codeHash,
+        expiry,
+        eventId
+      ]
+    );
 
     await client.query("COMMIT");
 
     console.log(
-      `Generated verification code for event ${eventIdInt}. Tickets updated: ${updateResult.rowCount}`
+      `Generated verification code for event ${eventId}.`
+    );
+
+    console.log(
+      `Tickets updated: ${updateResult.rowCount}`
     );
 
     console.log(
       `Verification code expires at: ${expiry.toISOString()}`
     );
 
-    /* =========================
-       GET PAID TICKETS
-    ========================= */
 
-    const ticketResult =
-      await pool.query(
-        `
-        SELECT
-          id,
-          customer_name,
-          customer_email,
-          event_title
-        FROM tickets
-        WHERE event_id = $1
-        AND payment_status = 'PAID'
-        AND deleted_at IS NULL
-        `,
-        [eventIdInt]
-      );
+    /* =====================================================
+       GET PAID TICKETS FOR EMAIL DELIVERY
+    ===================================================== */
 
-    /* =========================
-       SEND VERIFICATION EMAILS
-    ========================= */
+    const ticketResult = await pool.query(
+      `
+      SELECT
+        id,
+        ticket_id,
+        customer_name,
+        customer_email,
+        event_title
+      FROM tickets
+      WHERE event_id = $1
+      AND payment_status = 'PAID'
+      AND deleted_at IS NULL
+      ORDER BY id
+      `,
+      [eventId]
+    );
 
-    for (
-      const ticket of ticketResult.rows
-    ) {
 
+    /* =====================================================
+       SEND CODE TO EVERY PAID TICKET HOLDER
+    ===================================================== */
+
+    for (const ticket of ticketResult.rows) {
       try {
-
         await sendVerificationCodeEmail(
           ticket,
           code
         );
 
-        const ticketIdInt =
-          parseInt(ticket.id, 10);
-
         await pool.query(
           `
           UPDATE tickets
           SET
-            verification_code_sent_at =
-              CURRENT_TIMESTAMP
+            verification_code_sent_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
           WHERE id = $1
           `,
-          [
-            Number.isNaN(ticketIdInt)
-              ? ticket.id
-              : ticketIdInt
-          ]
+          [ticket.id]
         );
 
         console.log(
           `Verification code email sent to ${ticket.customer_email}`
         );
-
       } catch (emailError) {
-
         console.error(
           `Failed sending verification code to ${ticket.customer_email}:`,
           emailError
         );
-
       }
     }
-
   } catch (error) {
-
     try {
-
-      await client.query(
-        "ROLLBACK"
-      );
-
+      await client.query("ROLLBACK");
     } catch (_) {}
 
     throw error;
-
   } finally {
-
     client.release();
-
   }
 }
 
-/* =========================
+
+/* =========================================================
    EXPORTS
-========================= */
+========================================================= */
 
 module.exports = {
   generateEventVerificationCodes,
-  generateCodeForEvent
+  generateCodeForEvent,
+  getNairobiDate,
+  getNairobiEndOfDay
 };
-

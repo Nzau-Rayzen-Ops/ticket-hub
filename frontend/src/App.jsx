@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+﻿import { Routes, Route } from "react-router-dom";
 
 import MainLayout from "./layouts/MainLayout";
 
@@ -9,7 +9,6 @@ import Checkout from "./pages/Checkout";
 import Payment from "./pages/Payment";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import PaymentFailed from "./pages/PaymentFailed";
-import Ticket from "./pages/Ticket";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
@@ -71,11 +70,6 @@ export default function App() {
         <Route
           path="/payment/failed"
           element={<PaymentFailed />}
-        />
-
-        <Route
-          path="/ticket"
-          element={<Ticket />}
         />
 
         <Route

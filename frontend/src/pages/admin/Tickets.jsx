@@ -1,4 +1,4 @@
-import {
+﻿import {
   useEffect,
   useState
 } from "react";
@@ -146,12 +146,31 @@ export default function Tickets() {
       const ticketStatus =
         ticket.ticket_status ||
         "VALID";
+      /* =========================
+         GET SECURE QR TOKEN
+      ========================= */
 
+      const qrResponse =
+        await fetch(
+          `/api/tickets/admin/qr/${encodeURIComponent(ticketId)}`,
+          {
+            method: "GET",
+            credentials: "include"
+          }
+        );
+
+      const qrData =
+        await qrResponse.json();
+
+      if (!qrResponse.ok) {
+        throw new Error(
+          qrData.message ||
+          "Failed to generate QR code."
+        );
+      }
 
       const qrToken =
-        ticket.qr_token ||
-        ticket.qrToken ||
-        ticket.token ||
+        qrData?.ticket?.qrToken ||
         "";
 
 
@@ -736,7 +755,7 @@ TicketHub`;
 
 
           <Link to="/admin/deleted-tickets">
-            🗑 Deleted
+            ðŸ—‘ Deleted
           </Link>
 
 
@@ -751,7 +770,7 @@ TicketHub`;
           to="/"
           className="admin-back"
         >
-          ← Back to website
+          â† Back to website
         </Link>
 
       </aside>
@@ -855,7 +874,7 @@ TicketHub`;
             <div className="admin-empty">
 
               <div className="admin-empty-icon">
-                🎟
+                ðŸŽŸ
               </div>
 
 
@@ -1101,7 +1120,7 @@ TicketHub`;
                               )
                             }
                           >
-                            📄 Download PDF
+                            ðŸ“„ Download PDF
                           </button>
 
 
@@ -1118,7 +1137,7 @@ TicketHub`;
                               )
                             }
                           >
-                            ✉ Open Gmail
+                            âœ‰ Open Gmail
                           </button>
 
 

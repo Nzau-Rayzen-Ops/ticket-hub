@@ -1,0 +1,15 @@
+.admin-delete-button {
+  background: #b42318;
+  color: white;
+  border: 1px solid #b42318;
+}
+
+.admin-delete-button:hover {
+  background: #8f1d14;
+  border-color: #8f1d14;
+}
+
+.admin-delete-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

@@ -1,4 +1,4 @@
-﻿const express = require("express");
+const express = require("express");
 
 const {
   createTicket,
@@ -17,8 +17,7 @@ const {
   createPendingPayment,
   getPendingPayments,
   confirmManualPayment,
-  rejectManualPayment,
-  getTicketQrToken
+  rejectManualPayment
 
 } = require("../controllers/ticketController");
 
@@ -123,16 +122,6 @@ router.get(
   requireAdmin,
   getAllTickets
 );
-/* =========================
-   ADMIN QR TOKEN
-========================= */
-
-router.get(
-  "/admin/qr/:ticketId",
-  requireAdmin,
-  getTicketQrToken
-);
-
 
 
 router.get(
@@ -174,4 +163,3 @@ router.get(
 
 
 module.exports = router;
-

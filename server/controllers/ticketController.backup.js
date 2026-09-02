@@ -530,16 +530,6 @@ async function createTicket(req, res) {
 
 async function getTicket(req, res) {
   try {
-    const ticketId =
-      String(req.params.ticketId || "").trim();
-
-    if (!ticketId) {
-      return res.status(400).json({
-        success: false,
-        message: "Ticket ID is required."
-      });
-    }
-
     const result = await pool.query(
       `
       SELECT
@@ -554,8 +544,6 @@ async function getTicket(req, res) {
         customer_email,
         customer_phone,
         payment_status,
-        payment_method,
-        mpesa_receipt_number,
         ticket_status,
         deleted_at,
         created_at
@@ -563,39 +551,19 @@ async function getTicket(req, res) {
       WHERE ticket_id = $1
       LIMIT 1
       `,
-      [ticketId]
+      [req.params.ticketId]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({
-        success: false,
-        message: "Ticket not found."
+        message:
+          "Ticket not found."
       });
     }
 
-    const ticket = result.rows[0];
-
-    /*
-      IMPORTANT:
-
-      qr_token_hash is intentionally NOT returned.
-
-      The raw QR token is only available at the moment
-      the ticket is created/confirmed.
-
-      For a newly confirmed manual payment, the token
-      is returned by confirmManualPayment() and should be
-      passed to the customer ticket page.
-
-      This endpoint therefore remains useful for ticket
-      details, but cannot reconstruct a token that was
-      already discarded.
-    */
-
-    return res.json({
-      success: true,
-      ticket
-    });
+    return res.json(
+      result.rows[0]
+    );
 
   } catch (error) {
     console.error(
@@ -604,12 +572,12 @@ async function getTicket(req, res) {
     );
 
     return res.status(500).json({
-      success: false,
       message:
         "Failed to retrieve ticket."
     });
   }
 }
+
 
 /* =========================================================
    VERIFY QR
@@ -1961,7 +1929,7 @@ async function confirmManualPayment(req, res) {
         AND deleted_at IS NULL
         FOR UPDATE
         `,
-        [String(ticketId).trim()]
+        [String(ticketId)]
       );
 
     if (ticketResult.rows.length === 0) {
@@ -2035,7 +2003,7 @@ async function confirmManualPayment(req, res) {
 
 
     /* =====================================================
-       GENERATE NEW SECURE QR TOKEN
+       GENERATE QR TOKEN
     ===================================================== */
 
     const qrToken =
@@ -2094,10 +2062,12 @@ async function confirmManualPayment(req, res) {
 
 
     /*
+      IMPORTANT:
+
       Inventory was already reserved when the pending
       payment was created.
 
-      Do NOT reduce inventory again here.
+      Therefore confirmation does NOT reduce inventory again.
     */
 
     await client.query("COMMIT");
@@ -2107,20 +2077,18 @@ async function confirmManualPayment(req, res) {
 
 
     /* =====================================================
-       SEND EMAIL
+       SEND TICKET EMAIL
     ===================================================== */
 
     let emailSent = false;
 
     try {
-      const emailResult =
-        await sendTicketEmail({
-          ...confirmedTicket,
-          qrToken
-        });
+      await sendTicketEmail({
+        ...confirmedTicket,
+        qrToken
+      });
 
-      emailSent =
-        emailResult?.success === true;
+      emailSent = true;
     } catch (emailError) {
       console.error(
         "Confirmed ticket email error:",
@@ -2129,73 +2097,22 @@ async function confirmManualPayment(req, res) {
     }
 
 
-    /* =====================================================
-       RESPONSE
-    ===================================================== */
-
     return res.json({
       success: true,
-
       message:
         emailSent
           ? "Payment confirmed. Ticket activated and email sent."
           : "Payment confirmed and ticket activated, but email could not be sent.",
-
       emailSent,
-
       ticket: {
-        id:
-          confirmedTicket.id,
-
         ticketId:
           confirmedTicket.ticket_id,
-
-        eventId:
-          confirmedTicket.event_id,
-
-        eventTitle:
-          confirmedTicket.event_title,
-
-        ticketType:
-          confirmedTicket.ticket_type,
-
-        price:
-          Number(confirmedTicket.price),
-
-        quantity:
-          Number(confirmedTicket.quantity),
-
-        customerName:
-          confirmedTicket.customer_name,
-
-        customerEmail:
-          confirmedTicket.customer_email,
-
-        customerPhone:
-          confirmedTicket.customer_phone,
-
         paymentStatus:
           confirmedTicket.payment_status,
-
-        paymentMethod:
-          confirmedTicket.payment_method,
-
-        receiptNumber:
-          confirmedTicket.mpesa_receipt_number,
-
         ticketStatus:
           confirmedTicket.ticket_status,
-
-        createdAt:
-          confirmedTicket.created_at,
-
-        /*
-          THIS IS THE IMPORTANT FIX.
-
-          The original token is returned only here.
-          PostgreSQL stores only its SHA-256 hash.
-        */
-        qrToken
+        receiptNumber:
+          confirmedTicket.mpesa_receipt_number
       }
     });
 
@@ -2215,11 +2132,11 @@ async function confirmManualPayment(req, res) {
         error.message ||
         "Failed to confirm payment."
     });
-
   } finally {
     client.release();
   }
 }
+
 
 /* =========================================================
    REJECT MANUAL PAYMENT
@@ -2413,179 +2330,6 @@ async function rejectManualPayment(req, res) {
 }
 
 
-
-/* =========================================================
-   GET / REISSUE QR TOKEN FOR ADMIN
-========================================================= */
-
-async function getTicketQrToken(req, res) {
-  const client = await pool.connect();
-
-  try {
-    const ticketId =
-      String(req.params.ticketId || "").trim();
-
-    if (!ticketId) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Ticket ID is required."
-      });
-    }
-
-    await client.query("BEGIN");
-
-    /* =====================================================
-       LOCK TICKET
-    ===================================================== */
-
-    const ticketResult =
-      await client.query(
-        `
-        SELECT
-          id,
-          ticket_id,
-          payment_status,
-          ticket_status,
-          deleted_at
-        FROM tickets
-        WHERE ticket_id = $1
-        FOR UPDATE
-        `,
-        [ticketId]
-      );
-
-    if (ticketResult.rows.length === 0) {
-      await client.query("ROLLBACK");
-
-      return res.status(404).json({
-        success: false,
-        message:
-          "Ticket not found."
-      });
-    }
-
-    const ticket =
-      ticketResult.rows[0];
-
-    /* =====================================================
-       SECURITY / STATUS CHECKS
-    ===================================================== */
-
-    if (ticket.deleted_at !== null) {
-      await client.query("ROLLBACK");
-
-      return res.status(404).json({
-        success: false,
-        message:
-          "Ticket is deleted."
-      });
-    }
-
-    if (ticket.payment_status !== "PAID") {
-      await client.query("ROLLBACK");
-
-      return res.status(400).json({
-        success: false,
-        message:
-          "Only paid tickets can have a QR token."
-      });
-    }
-
-    if (ticket.ticket_status === "CANCELLED") {
-      await client.query("ROLLBACK");
-
-      return res.status(400).json({
-        success: false,
-        message:
-          "Cancelled tickets cannot receive a QR token."
-      });
-    }
-
-    /* =====================================================
-       GENERATE NEW SECURE QR TOKEN
-    ===================================================== */
-
-    const qrToken =
-      generateRandomToken(32);
-
-    const qrTokenHash =
-      hashValue(qrToken);
-
-    /* =====================================================
-       REPLACE STORED HASH
-    ===================================================== */
-
-    const updateResult =
-      await client.query(
-        `
-        UPDATE tickets
-        SET
-          qr_token_hash = $1,
-          updated_at = CURRENT_TIMESTAMP
-        WHERE id = $2
-        AND payment_status = 'PAID'
-        AND deleted_at IS NULL
-        RETURNING
-          ticket_id,
-          payment_status,
-          ticket_status,
-          updated_at
-        `,
-        [
-          qrTokenHash,
-          ticket.id
-        ]
-      );
-
-    if (updateResult.rows.length !== 1) {
-      await client.query("ROLLBACK");
-
-      return res.status(409).json({
-        success: false,
-        message:
-          "QR token could not be generated."
-      });
-    }
-
-    await client.query("COMMIT");
-
-    return res.json({
-      success: true,
-      message:
-        "QR token generated successfully.",
-      ticket: {
-        ticketId:
-          updateResult.rows[0].ticket_id,
-        paymentStatus:
-          updateResult.rows[0].payment_status,
-        ticketStatus:
-          updateResult.rows[0].ticket_status,
-        qrToken
-      }
-    });
-
-  } catch (error) {
-    try {
-      await client.query("ROLLBACK");
-    } catch (_) {}
-
-    console.error(
-      "Get ticket QR token error:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        error.message ||
-        "Failed to generate QR token."
-    });
-
-  } finally {
-    client.release();
-  }
-}
 /* =========================================================
    EXPORTS
 ========================================================= */
@@ -2606,8 +2350,5 @@ module.exports = {
   createPendingPayment,
   getPendingPayments,
   confirmManualPayment,
-  rejectManualPayment,
-  getTicketQrToken
+  rejectManualPayment
 };
-
-

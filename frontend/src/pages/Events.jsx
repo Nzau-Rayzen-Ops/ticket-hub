@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 export default function Events() {
@@ -9,6 +9,9 @@ export default function Events() {
   useEffect(() => {
     async function loadEvents() {
       try {
+        setLoading(true);
+        setError("");
+
         const response = await fetch("/api/events");
 
         if (!response.ok) {
@@ -17,10 +20,19 @@ export default function Events() {
 
         const data = await response.json();
 
-        setEvents(data);
+        const eventList = Array.isArray(data)
+          ? data
+          : Array.isArray(data.events)
+            ? data.events
+            : [];
+
+        setEvents(eventList);
       } catch (err) {
         console.error("Load events error:", err);
-        setError("Unable to load events. Please try again.");
+        setError(
+          err.message ||
+          "Unable to load events. Please try again."
+        );
       } finally {
         setLoading(false);
       }
@@ -33,7 +45,6 @@ export default function Events() {
     <div className="events-page">
 
       <section className="events-header">
-
         <p className="section-label">
           DISCOVER WHAT'S HAPPENING
         </p>
@@ -45,96 +56,125 @@ export default function Events() {
         <p>
           Find your next experience.
         </p>
-
       </section>
 
       {loading && (
-        <p>
-          Loading events...
-        </p>
+        <div className="admin-empty">
+          <p>Loading events...</p>
+        </div>
       )}
 
       {error && (
-        <p>
-          {error}
-        </p>
+        <div className="admin-empty">
+          <h3>Unable to load events</h3>
+          <p>{error}</p>
+        </div>
       )}
 
       {!loading && !error && events.length === 0 && (
-        <p>
-          No upcoming events available.
-        </p>
+        <div className="admin-empty">
+          <h3>No upcoming events</h3>
+          <p>
+            There are currently no upcoming events available.
+          </p>
+        </div>
       )}
 
       {!loading && !error && events.length > 0 && (
         <section className="events-grid">
 
-          {events.map((event) => (
+          {events.map((event) => {
 
-            <article
-              className="event-card"
-              key={event.id}
-            >
+            const price = Number(
+              event.early_bird_enabled &&
+              event.early_bird_single_price
+                ? event.early_bird_single_price
+                : event.single_price ||
+                  event.price ||
+                  0
+            );
 
-              <Link
-                to={`/events/${event.id}`}
-                className="event-card-link"
+            const hasEarlyBird =
+              Boolean(event.early_bird_enabled) &&
+              Number(event.early_bird_single_price) > 0;
+
+            return (
+              <article
+                className="event-card"
+                key={event.id}
               >
 
-                <div
-                  className="event-image"
-                  style={
-                    event.image
-                      ? {
-                          backgroundImage: `url(${event.image})`,
-                          backgroundSize: "cover",
-                          backgroundPosition: "center"
-                        }
-                      : {}
-                  }
+                <Link
+                  to={`/events/${event.id}`}
+                  className="event-card-link"
                 >
-                  {!event.image && (
-                    <span>EVENT</span>
-                  )}
-                </div>
 
-                <div className="event-content">
+                  <div
+                    className="event-image"
+                    style={
+                      event.image
+                        ? {
+                            backgroundImage:
+                              `url("${event.image}")`,
+                            backgroundSize: "cover",
+                            backgroundPosition: "center"
+                          }
+                        : {}
+                    }
+                  >
+                    {!event.image && (
+                      <span>EVENT</span>
+                    )}
+                  </div>
 
-                  <p className="event-category">
-                    UPCOMING EVENT
-                  </p>
+                  <div className="event-content">
 
-                  <h2>
-                    {event.title}
-                  </h2>
+                    <p className="event-category">
+                      UPCOMING EVENT
+                    </p>
 
-                  <p>
-                    {event.date}
-                  </p>
+                    <h2>
+                      {event.title}
+                    </h2>
 
-                  <p>
-                    {event.venue}
-                  </p>
+                    <p>
+                      {event.date}
+                    </p>
 
-                  <div className="event-bottom">
+                    <p>
+                      {event.time}
+                    </p>
 
-                    <strong>
-                      From KES {Number(event.price).toLocaleString()}
-                    </strong>
+                    <p>
+                      {event.venue}
+                    </p>
 
-                    <span className="view-event">
-                      Select Tickets ?
-                    </span>
+                    <div className="event-bottom">
+
+                      <strong>
+                        From KES{" "}
+                        {price.toLocaleString()}
+                      </strong>
+
+                      <span className="view-event">
+                        Select Tickets
+                      </span>
+
+                    </div>
+
+                    {hasEarlyBird && (
+                      <small>
+                        Early Bird available
+                      </small>
+                    )}
 
                   </div>
 
-                </div>
+                </Link>
 
-              </Link>
-
-            </article>
-
-          ))}
+              </article>
+            );
+          })}
 
         </section>
       )}

@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 export default function EventDetails() {
   const { id } = useParams();
@@ -9,124 +9,283 @@ export default function EventDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // ?????? ADD THIS - Track which ticket type is selected ??????
-  const [selectedTicketType, setSelectedTicketType] = useState("single");
+  const [selectedTicketType, setSelectedTicketType] =
+    useState("single");
+
   const [quantity, setQuantity] = useState(1);
 
+  /*
+  ============================================================
+  FETCH EVENT
+  ============================================================
+  */
+
   useEffect(() => {
-    const fetchEvent = async () => {
+    async function fetchEvent() {
       try {
         setLoading(true);
         setError("");
 
-        const response = await fetch(
-          `/api/events/${id}`
-        );
+        const response = await fetch(`/api/events/${id}`);
 
         if (!response.ok) {
           throw new Error("Event not found.");
         }
 
         const data = await response.json();
+
+        console.log("=================================");
+        console.log("EVENT DETAILS");
+        console.log(data);
+        console.log("=================================");
+
+        console.log("EARLY BIRD DATA", {
+          enabled: data.early_bird_enabled,
+          price: data.early_bird_single_price,
+          expiry: data.early_bird_expiry
+        });
+
         setEvent(data);
       } catch (err) {
         console.error("Failed to load event:", err);
-        setError("Failed to load event.");
+
+        setError(
+          err.message || "Failed to load event."
+        );
       } finally {
         setLoading(false);
       }
-    };
+    }
 
     fetchEvent();
   }, [id]);
 
-  const increaseQuantity = () => {
-    if (!event) return;
-    if (quantity < 10 && quantity < event.available_tickets) {
-      setQuantity(quantity + 1);
-    }
-  };
+  /*
+  ============================================================
+  NORMALIZE BOOLEAN
+  ============================================================
+  */
 
-  const decreaseQuantity = () => {
-    if (quantity > 1) {
-      setQuantity(quantity - 1);
-    }
-  };
-
-  // ?????? ADD THESE HELPER FUNCTIONS ??????
-  const isEarlyBirdActive = () => {
-    if (!event) return false;
-
-    if (!event.early_bird_enabled) {
+  function isEarlyBirdEnabled() {
+    if (!event) {
       return false;
+    }
+
+    const value = event.early_bird_enabled;
+
+    return (
+      value === true ||
+      value === 1 ||
+      value === "1" ||
+      value === "true" ||
+      value === "TRUE" ||
+      value === "True"
+    );
+  }
+
+  /*
+  ============================================================
+  EARLY BIRD PRICE
+  ============================================================
+  */
+
+  function getEarlyBirdPrice() {
+    if (!event) {
+      return 0;
+    }
+
+    const price = Number(
+      event.early_bird_single_price
+    );
+
+    if (!Number.isFinite(price) || price <= 0) {
+      return 0;
+    }
+
+    return price;
+  }
+
+  /*
+  ============================================================
+  NORMAL PRICE
+  ============================================================
+  */
+
+  function getSinglePrice() {
+    if (!event) {
+      return 0;
+    }
+
+    return Number(
+      event.single_price ||
+      event.price ||
+      0
+    );
+  }
+
+  /*
+  ============================================================
+  EARLY BIRD EXPIRY
+  ============================================================
+  */
+
+  function getEarlyBirdExpiry() {
+    if (!event) {
+      return null;
     }
 
     if (!event.early_bird_expiry) {
-      return true;
+      return null;
     }
 
-    const expiry = new Date(
+    const raw = String(
       event.early_bird_expiry
+    ).trim();
+
+    if (!raw) {
+      return null;
+    }
+
+    /*
+      PostgreSQL DATE example:
+
+      2026-11-20
+
+      PostgreSQL timestamp example:
+
+      2026-11-20T00:00:00.000Z
+
+      We only need the YYYY-MM-DD portion.
+    */
+
+    const match = raw.match(
+      /^(\d{4}-\d{2}-\d{2})/
+    );
+
+    if (!match) {
+      console.warn(
+        "Could not parse early bird expiry:",
+        raw
+      );
+
+      return null;
+    }
+
+    const datePart = match[1];
+
+    /*
+      Use the END of the expiry day.
+    */
+
+    const expiry = new Date(
+      `${datePart}T23:59:59`
     );
 
     if (Number.isNaN(expiry.getTime())) {
+      return null;
+    }
+
+    return expiry;
+  }
+
+  /*
+  ============================================================
+  EARLY BIRD ACTIVE
+  ============================================================
+  */
+
+  function isEarlyBirdActive() {
+    if (!event) {
       return false;
     }
 
-    return new Date() < expiry;
-  };
+    /*
+      Feature must be enabled.
+    */
 
-  const getTicketPrice = () => {
-    if (!event) return 0;
+    if (!isEarlyBirdEnabled()) {
+      return false;
+    }
+
+    /*
+      Early Bird must have a valid price.
+    */
+
+    const earlyBirdPrice =
+      getEarlyBirdPrice();
+
+    if (earlyBirdPrice <= 0) {
+      return false;
+    }
+
+    /*
+      If there is NO expiry date,
+      keep Early Bird active because the
+      feature itself is enabled and has
+      a valid price.
+
+      This also prevents PostgreSQL date
+      formatting from accidentally hiding
+      the ticket.
+    */
+
+    const expiry =
+      getEarlyBirdExpiry();
+
+    if (!expiry) {
+      console.warn(
+        "Early Bird enabled but expiry is missing/unreadable. Showing Early Bird."
+      );
+
+      return true;
+    }
+
+    const now = new Date();
+
+    return now <= expiry;
+  }
+
+  /*
+  ============================================================
+  TICKET PRICE
+  ============================================================
+  */
+
+  function getTicketPrice() {
+    if (!event) {
+      return 0;
+    }
 
     switch (selectedTicketType) {
-
       case "early_bird":
-        if (isEarlyBirdActive()) {
-          return Number(
-            event.early_bird_single_price ||
-            event.single_price ||
-            event.price ||
-            0
-          );
-        }
-
-        return Number(
-          event.single_price ||
-          event.price ||
-          0
-        );
+        return isEarlyBirdActive()
+          ? getEarlyBirdPrice()
+          : getSinglePrice();
 
       case "couple":
         return Number(
-          event.couple_price ||
-          event.single_price ||
-          event.price ||
-          0
+          event.couple_price || 0
         );
 
       case "group3":
         return Number(
-          event.group3_price ||
-          event.single_price ||
-          event.price ||
-          0
+          event.group3_price || 0
         );
 
       case "single":
       default:
-        return Number(
-          event.single_price ||
-          event.price ||
-          0
-        );
+        return getSinglePrice();
     }
-  };
+  }
 
-  const getTicketLabel = () => {
+  /*
+  ============================================================
+  TICKET LABEL
+  ============================================================
+  */
 
+  function getTicketLabel() {
     switch (selectedTicketType) {
-
       case "early_bird":
         return "Early Bird";
 
@@ -140,7 +299,63 @@ export default function EventDetails() {
       default:
         return "Single Ticket";
     }
-  };
+  }
+
+  /*
+  ============================================================
+  QUANTITY
+  ============================================================
+  */
+
+  function increaseQuantity() {
+    if (!event) {
+      return;
+    }
+
+    const available =
+      Number(event.available_tickets || 0);
+
+    if (
+      quantity < 10 &&
+      quantity < available
+    ) {
+      setQuantity(
+        current => current + 1
+      );
+    }
+  }
+
+  function decreaseQuantity() {
+    if (quantity > 1) {
+      setQuantity(
+        current => current - 1
+      );
+    }
+  }
+
+  /*
+  ============================================================
+  RESET INVALID EARLY BIRD SELECTION
+  ============================================================
+  */
+
+  useEffect(() => {
+    if (
+      selectedTicketType === "early_bird" &&
+      !isEarlyBirdActive()
+    ) {
+      setSelectedTicketType("single");
+    }
+  }, [
+    event,
+    selectedTicketType
+  ]);
+
+  /*
+  ============================================================
+  LOADING
+  ============================================================
+  */
 
   if (loading) {
     return (
@@ -150,155 +365,314 @@ export default function EventDetails() {
     );
   }
 
+  /*
+  ============================================================
+  ERROR
+  ============================================================
+  */
+
   if (error || !event) {
     return (
       <div className="not-found-event">
         <h1>Event not found</h1>
-        <p>{error || "This event does not exist."}</p>
+
+        <p>
+          {error ||
+            "This event does not exist."}
+        </p>
       </div>
     );
   }
 
-  const price = getTicketPrice();
-  const total = price * quantity;
+  /*
+  ============================================================
+  VALUES
+  ============================================================
+  */
 
-  const continueToCheckout = () => {
+  const availableTickets =
+    Number(
+      event.available_tickets || 0
+    );
+
+  const earlyBirdActive =
+    isEarlyBirdActive();
+
+  const earlyBirdPrice =
+    getEarlyBirdPrice();
+
+  const singlePrice =
+    getSinglePrice();
+
+  const price =
+    getTicketPrice();
+
+  const total =
+    price * quantity;
+
+  /*
+  ============================================================
+  CHECKOUT
+  ============================================================
+  */
+
+  function continueToCheckout() {
+    if (
+      availableTickets <= 0 ||
+      price <= 0
+    ) {
+      return;
+    }
+
+    console.log(
+      "CHECKOUT TICKET:",
+      {
+        type: selectedTicketType,
+        name: getTicketLabel(),
+        price,
+        quantity,
+        total
+      }
+    );
+
     navigate("/checkout", {
       state: {
         event,
         eventId: event.id,
+
         ticket: {
           id: selectedTicketType,
           name: getTicketLabel(),
-          price
+          price: price
         },
+
         quantity,
         total
       }
     });
-  };
+  }
+
+  /*
+  ============================================================
+  PAGE
+  ============================================================
+  */
 
   return (
     <div className="event-details-page">
 
-      <section className="event-details-hero">
+      {/* ======================================================
+          HERO
+      ====================================================== */}
+
+      <section
+        className="event-details-hero"
+        style={
+          event.image
+            ? {
+                backgroundImage:
+                  `linear-gradient(
+                    rgba(0,0,0,0.45),
+                    rgba(0,0,0,0.45)
+                  ),
+                  url("${event.image}")`,
+
+                backgroundSize: "cover",
+                backgroundPosition: "center"
+              }
+            : {}
+        }
+      >
         <div>
-          <p className="event-category">UPCOMING EVENT</p>
-          <h1>{event.title}</h1>
-          <p>
-            {event.date} ï¿½ {event.venue}
+
+          <p className="event-category">
+            UPCOMING EVENT
           </p>
+
+          <h1>
+            {event.title}
+          </h1>
+
+          <p>
+            {event.date} • {event.venue}
+          </p>
+
         </div>
       </section>
 
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
+
       <section className="event-details-content">
+
+        {/* ====================================================
+            DESCRIPTION
+        ==================================================== */}
 
         <div className="event-description">
 
-          <h2>About this event</h2>
+          <h2>
+            About this event
+          </h2>
 
           <p>
-            {event.description || "No description available for this event."}
+            {event.description ||
+              "No description available for this event."}
           </p>
 
           <div className="event-info">
 
             <div>
-              <strong>Date</strong>
-              <span>{event.date}</span>
+              <strong>
+                Date
+              </strong>
+
+              <span>
+                {event.date}
+              </span>
             </div>
 
             <div>
-              <strong>Time</strong>
-              <span>{event.time}</span>
+              <strong>
+                Time
+              </strong>
+
+              <span>
+                {event.time}
+              </span>
             </div>
 
             <div>
-              <strong>Location</strong>
-              <span>{event.venue}</span>
+              <strong>
+                Location
+              </strong>
+
+              <span>
+                {event.venue}
+              </span>
             </div>
 
             <div>
-              <strong>Tickets Available</strong>
-              <span>{event.available_tickets}</span>
+              <strong>
+                Tickets Available
+              </strong>
+
+              <span>
+                {availableTickets}
+              </span>
             </div>
 
           </div>
 
         </div>
 
+        {/* ====================================================
+            TICKET SELECTION
+        ==================================================== */}
+
         <div className="ticket-selection">
 
-          <h2>Select Tickets</h2>          <div className="ticket-types">
+          <h2>
+            Select Tickets
+          </h2>
 
-            {/* Early Bird Ticket */}
-            {isEarlyBirdActive() &&
-              event.early_bird_single_price &&
-              Number(event.early_bird_single_price) > 0 && (
+          <div className="ticket-types">
 
+            {/* ================================================
+                EARLY BIRD
+            ================================================= */}
+
+            {earlyBirdActive && (
               <button
-                className={`ticket-option ${
-                  selectedTicketType === "early_bird"
-                    ? "selected"
-                    : ""
-                }`}
                 type="button"
+                className={
+                  `ticket-option ${
+                    selectedTicketType ===
+                    "early_bird"
+                      ? "selected"
+                      : ""
+                  }`
+                }
                 onClick={() =>
-                  setSelectedTicketType("early_bird")
+                  setSelectedTicketType(
+                    "early_bird"
+                  )
                 }
               >
-                <span>?? Early Bird</span>
+
+                <span>
+                  Early Bird
+                </span>
 
                 <strong>
                   KES{" "}
-                  {Number(
-                    event.early_bird_single_price
-                  ).toLocaleString()}
+                  {earlyBirdPrice.toLocaleString()}
                 </strong>
 
               </button>
             )}
 
-            {/* Single Ticket - Always show */}
+            {/* ================================================
+                SINGLE
+            ================================================= */}
+
             <button
-              className={`ticket-option ${
-                selectedTicketType === "single"
-                  ? "selected"
-                  : ""
-              }`}
               type="button"
+              className={
+                `ticket-option ${
+                  selectedTicketType ===
+                  "single"
+                    ? "selected"
+                    : ""
+                }`
+              }
               onClick={() =>
-                setSelectedTicketType("single")
+                setSelectedTicketType(
+                  "single"
+                )
               }
             >
-              <span>?? Single Ticket</span>
+
+              <span>
+                Single Ticket
+              </span>
 
               <strong>
                 KES{" "}
-                {Number(
-                  event.single_price ||
-                  event.price ||
-                  0
-                ).toLocaleString()}
+                {singlePrice.toLocaleString()}
               </strong>
+
             </button>
 
-            {/* Couple Ticket */}
-            {event.couple_price &&
-              Number(event.couple_price) > 0 && (
+            {/* ================================================
+                COUPLE
+            ================================================= */}
+
+            {Number(
+              event.couple_price
+            ) > 0 && (
 
               <button
-                className={`ticket-option ${
-                  selectedTicketType === "couple"
-                    ? "selected"
-                    : ""
-                }`}
                 type="button"
+                className={
+                  `ticket-option ${
+                    selectedTicketType ===
+                    "couple"
+                      ? "selected"
+                      : ""
+                  }`
+                }
                 onClick={() =>
-                  setSelectedTicketType("couple")
+                  setSelectedTicketType(
+                    "couple"
+                  )
                 }
               >
-                <span>?? Couple (2 People)</span>
+
+                <span>
+                  Couple (2 People)
+                </span>
 
                 <strong>
                   KES{" "}
@@ -306,25 +680,39 @@ export default function EventDetails() {
                     event.couple_price
                   ).toLocaleString()}
                 </strong>
+
               </button>
+
             )}
 
-            {/* Group of 3 Ticket */}
-            {event.group3_price &&
-              Number(event.group3_price) > 0 && (
+            {/* ================================================
+                GROUP OF 3
+            ================================================= */}
+
+            {Number(
+              event.group3_price
+            ) > 0 && (
 
               <button
-                className={`ticket-option ${
-                  selectedTicketType === "group3"
-                    ? "selected"
-                    : ""
-                }`}
                 type="button"
+                className={
+                  `ticket-option ${
+                    selectedTicketType ===
+                    "group3"
+                      ? "selected"
+                      : ""
+                  }`
+                }
                 onClick={() =>
-                  setSelectedTicketType("group3")
+                  setSelectedTicketType(
+                    "group3"
+                  )
                 }
               >
-                <span>?? Group of 3</span>
+
+                <span>
+                  Group of 3
+                </span>
 
                 <strong>
                   KES{" "}
@@ -332,32 +720,99 @@ export default function EventDetails() {
                     event.group3_price
                   ).toLocaleString()}
                 </strong>
+
               </button>
+
             )}
 
           </div>
 
+          {/* ==================================================
+              EARLY BIRD INFORMATION
+          ================================================== */}
+
+          {earlyBirdActive && (
+            <div
+              style={{
+                marginTop: "12px",
+                marginBottom: "18px",
+                padding: "14px 16px",
+                borderRadius: "8px",
+                background: "#fff7e6",
+                border: "1px solid #f0c36d",
+                color: "#7a5200",
+                fontSize: "14px"
+              }}
+            >
+
+              <strong>
+                Early Bird Available
+              </strong>
+
+              <div>
+                Get your ticket at the
+                Early Bird price of{" "}
+                <strong>
+                  KES{" "}
+                  {earlyBirdPrice.toLocaleString()}
+                </strong>
+                .
+              </div>
+
+              {event.early_bird_expiry && (
+                <div
+                  style={{
+                    marginTop: "4px"
+                  }}
+                >
+                  Offer ends:
+                  {" "}
+                  {String(
+                    event.early_bird_expiry
+                  ).substring(0, 10)}
+                </div>
+              )}
+
+            </div>
+          )}
+
+          {/* ==================================================
+              QUANTITY
+          ================================================== */}
+
           <div className="quantity-section">
 
-            <span>Quantity</span>
+            <span>
+              Quantity
+            </span>
 
             <div className="quantity-controls">
 
               <button
                 type="button"
-                onClick={decreaseQuantity}
+                onClick={
+                  decreaseQuantity
+                }
+                disabled={
+                  quantity <= 1
+                }
               >
-                -
+                −
               </button>
 
-              <strong>{quantity}</strong>
+              <strong>
+                {quantity}
+              </strong>
 
               <button
                 type="button"
-                onClick={increaseQuantity}
+                onClick={
+                  increaseQuantity
+                }
                 disabled={
                   quantity >= 10 ||
-                  quantity >= event.available_tickets
+                  quantity >=
+                    availableTickets
                 }
               >
                 +
@@ -367,24 +822,46 @@ export default function EventDetails() {
 
           </div>
 
+          {/* ==================================================
+              SUMMARY
+          ================================================== */}
+
           <div className="checkout-summary">
 
-            <span>Total ({quantity} ï¿½ {getTicketLabel()})</span>
+            <span>
+              Total ({quantity} ×{" "}
+              {getTicketLabel()})
+            </span>
 
             <strong>
-              KES {total.toLocaleString()}
+              KES{" "}
+              {total.toLocaleString()}
             </strong>
 
           </div>
 
+          {/* ==================================================
+              CHECKOUT BUTTON
+          ================================================== */}
+
           <button
+            type="button"
             className="checkout-button"
-            onClick={continueToCheckout}
-            disabled={event.available_tickets <= 0}
+            onClick={
+              continueToCheckout
+            }
+            disabled={
+              availableTickets <= 0 ||
+              price <= 0
+            }
           >
-            {event.available_tickets <= 0
+
+            {availableTickets <= 0
               ? "Sold Out"
-              : "Continue to Checkout"}
+              : price <= 0
+                ? "Ticket Unavailable"
+                : "Continue to Checkout"}
+
           </button>
 
         </div>
@@ -394,4 +871,3 @@ export default function EventDetails() {
     </div>
   );
 }
-
