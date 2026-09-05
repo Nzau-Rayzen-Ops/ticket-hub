@@ -3,7 +3,8 @@
 const pool = require("../config/db");
 
 const {
-  sendTicketEmail
+  sendTicketEmail,
+  sendVerificationCodeEmail
 } = require("../services/emailService");
 
 const {
@@ -2415,6 +2416,361 @@ async function rejectManualPayment(req, res) {
 
 
 /* =========================================================
+   SEND VERIFICATION PIN
+========================================================= */
+
+async function sendVerificationPin(req, res) {
+  const client = await pool.connect();
+
+  try {
+    const ticketId =
+      String(req.params.ticketId || "").trim();
+
+    if (!ticketId) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Ticket ID is required."
+      });
+    }
+
+    await client.query("BEGIN");
+
+    /* =====================================================
+       LOCK TICKET
+    ===================================================== */
+
+    const ticketResult =
+      await client.query(
+        `
+        SELECT *
+        FROM tickets
+        WHERE ticket_id = $1
+        AND deleted_at IS NULL
+        FOR UPDATE
+        `,
+        [ticketId]
+      );
+
+    if (ticketResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+
+      return res.status(404).json({
+        success: false,
+        message:
+          "Ticket not found."
+      });
+    }
+
+    const ticket =
+      ticketResult.rows[0];
+
+    /* =====================================================
+       PAYMENT CHECK
+    ===================================================== */
+
+    if (
+      ticket.payment_status !== "PAID"
+    ) {
+      await client.query("ROLLBACK");
+
+      return res.status(400).json({
+        success: false,
+        message:
+          "Only paid tickets can receive a verification PIN."
+      });
+    }
+
+    /* =====================================================
+       TICKET STATUS CHECK
+    ===================================================== */
+
+    if (
+      ticket.ticket_status !== "VALID"
+    ) {
+      await client.query("ROLLBACK");
+
+      return res.status(400).json({
+        success: false,
+        message:
+          "Only valid tickets can receive a verification PIN."
+      });
+    }
+
+    /* =====================================================
+       CUSTOMER EMAIL CHECK
+    ===================================================== */
+
+    if (!ticket.customer_email) {
+      await client.query("ROLLBACK");
+
+      return res.status(400).json({
+        success: false,
+        message:
+          "This ticket does not have a customer email address."
+      });
+    }
+
+    /* =====================================================
+       GET EVENT DATE
+    ===================================================== */
+
+    const eventResult =
+      await client.query(
+        `
+        SELECT
+          id,
+          title,
+          date
+        FROM events
+        WHERE id = $1
+        LIMIT 1
+        `,
+        [Number(ticket.event_id)]
+      );
+
+    if (eventResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+
+      return res.status(404).json({
+        success: false,
+        message:
+          "The event associated with this ticket could not be found."
+      });
+    }
+
+    const event =
+      eventResult.rows[0];
+
+    const rawEventDate =
+      String(event.date || "").slice(0, 10);
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        rawEventDate
+      )
+    ) {
+      await client.query("ROLLBACK");
+
+      return res.status(400).json({
+        success: false,
+        message:
+          "The event has an invalid date."
+      });
+    }
+
+    /*
+      Nairobi is UTC+3.
+
+      Event-day 23:59:59.999 Nairobi
+      =
+      20:59:59.999 UTC
+    */
+
+    const verificationExpiry =
+      new Date(
+        `${rawEventDate}T20:59:59.999Z`
+      );
+
+    if (
+      Number.isNaN(
+        verificationExpiry.getTime()
+      )
+    ) {
+      await client.query("ROLLBACK");
+
+      return res.status(400).json({
+        success: false,
+        message:
+          "Could not calculate verification PIN expiry."
+      });
+    }
+
+    /* =====================================================
+       DO NOT SEND AFTER EVENT DAY
+    ===================================================== */
+
+    if (
+      verificationExpiry <= new Date()
+    ) {
+      await client.query("ROLLBACK");
+
+      return res.status(400).json({
+        success: false,
+        message:
+          "The event verification period has already expired."
+      });
+    }
+
+    /* =====================================================
+       GENERATE FRESH 6-DIGIT PIN
+    ===================================================== */
+
+    const verificationCode =
+      crypto
+        .randomInt(
+          100000,
+          1000000
+        )
+        .toString();
+
+    const verificationCodeHash =
+      hashValue(
+        verificationCode
+      );
+
+    /* =====================================================
+       STORE HASH ONLY
+    ===================================================== */
+
+    const updateResult =
+      await client.query(
+        `
+        UPDATE tickets
+        SET
+          verification_code_hash = $1,
+          verification_code_expires_at = $2,
+          verification_code_sent_at = CURRENT_TIMESTAMP,
+          verification_attempts = 0,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3
+        AND payment_status = 'PAID'
+        AND ticket_status = 'VALID'
+        AND deleted_at IS NULL
+        RETURNING
+          id,
+          ticket_id,
+          event_id,
+          event_title,
+          ticket_type,
+          quantity,
+          customer_name,
+          customer_email,
+          ticket_status,
+          verification_code_expires_at,
+          verification_code_sent_at
+        `,
+        [
+          verificationCodeHash,
+          verificationExpiry,
+          ticket.id
+        ]
+      );
+
+    if (
+      updateResult.rows.length !== 1
+    ) {
+      await client.query("ROLLBACK");
+
+      return res.status(409).json({
+        success: false,
+        message:
+          "The verification PIN could not be generated."
+      });
+    }
+
+    await client.query("COMMIT");
+
+    const updatedTicket =
+      updateResult.rows[0];
+
+    /* =====================================================
+       SEND PIN EMAIL
+    ===================================================== */
+
+    let emailResult;
+
+    try {
+      emailResult =
+        await sendVerificationCodeEmail(
+          updatedTicket,
+          verificationCode
+        );
+    } catch (emailError) {
+      console.error(
+        "Verification PIN email error:",
+        emailError
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "PIN was generated, but the email could not be sent. You can send the PIN again.",
+        emailSent: false,
+        ticketId:
+          updatedTicket.ticket_id
+      });
+    }
+
+    /* =====================================================
+       EMAIL CONFIGURATION CHECK
+    ===================================================== */
+
+    if (
+      !emailResult ||
+      emailResult.success !== true
+    ) {
+      return res.status(500).json({
+        success: false,
+        message:
+          "PIN was generated, but the email service could not send it.",
+        emailSent: false,
+        ticketId:
+          updatedTicket.ticket_id
+      });
+    }
+
+    /* =====================================================
+       SUCCESS
+    ===================================================== */
+
+    console.log(
+      `Verification PIN sent for ${updatedTicket.ticket_id}`
+    );
+
+    return res.json({
+      success: true,
+      emailSent: true,
+      message:
+        "Verification PIN sent successfully to the ticket holder.",
+      ticket: {
+        ticketId:
+          updatedTicket.ticket_id,
+        customerEmail:
+          updatedTicket.customer_email,
+        eventTitle:
+          updatedTicket.event_title,
+        verificationCodeExpiresAt:
+          updatedTicket.verification_code_expires_at,
+        verificationCodeSentAt:
+          updatedTicket.verification_code_sent_at
+      }
+    });
+
+  } catch (error) {
+
+    try {
+      await client.query("ROLLBACK");
+    } catch (_) {}
+
+    console.error(
+      "Send verification PIN error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        error.message ||
+        "Failed to send verification PIN."
+    });
+
+  } finally {
+    client.release();
+  }
+}
+
+/* =========================================================
    GET / REISSUE QR TOKEN FOR ADMIN
 ========================================================= */
 
@@ -2607,7 +2963,10 @@ module.exports = {
   getPendingPayments,
   confirmManualPayment,
   rejectManualPayment,
+  sendVerificationPin,
   getTicketQrToken
 };
+
+
 
 

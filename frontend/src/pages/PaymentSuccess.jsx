@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+﻿import React, { useEffect } from "react";
 import {
   useLocation,
   useNavigate
@@ -9,12 +9,59 @@ export default function PaymentSuccess() {
   const { state } = useLocation();
   const navigate = useNavigate();
 
-  const [whatsappNumber, setWhatsappNumber] = useState("");
+  // Administrator WhatsApp number
+  const ADMIN_WHATSAPP_NUMBER = "254758157516";
+
+  /*
+    Automatically open WhatsApp after payment submission.
+    The customer will still need to press Send in WhatsApp.
+  */
+  useEffect(() => {
+
+    if (!state) {
+      return;
+    }
+
+    const {
+      event,
+      ticket,
+      quantity,
+      total,
+      order,
+      receiptNumber
+    } = state;
+
+    const orderId =
+      order?.orderId ||
+      order?.ticketId ||
+      "Pending";
+
+    const message =
+      `Hello St Mary's Gala Committee.\n\n` +
+      `I have completed payment for a ticket.\n\n` +
+      `Order ID: ${orderId}\n` +
+      `Event: ${event?.title || "Event"}\n` +
+      `Ticket: ${ticket?.name || "Ticket"}\n` +
+      `Quantity: ${quantity || 1}\n` +
+      `Amount: KES ${Number(total || 0).toLocaleString()}\n` +
+      `M-Pesa Receipt: ${receiptNumber || "Submitted"}\n\n` +
+      `For Inquiry the Administrators number is: ${ADMIN_WHATSAPP_NUMBER}\n\n` +
+      `I understand that my payment must be verified by the event administrator. ` +
+      `Once verification is complete, I will receive my ticket by email within 24 hours.`;
+
+    const whatsappUrl =
+      `https://wa.me/${ADMIN_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+
+    // Open your WhatsApp chat automatically
+    window.location.href = whatsappUrl;
+
+  }, [state]);
 
   if (!state) {
 
     return (
       <div className="success-page">
+
         <div className="success-card">
 
           <h1>
@@ -29,6 +76,7 @@ export default function PaymentSuccess() {
           </button>
 
         </div>
+
       </div>
     );
   }
@@ -41,70 +89,6 @@ export default function PaymentSuccess() {
     order,
     receiptNumber
   } = state;
-
-  const handleFinish = () => {
-
-    let number = whatsappNumber.trim();
-
-    if (!number) {
-      alert("Please enter your WhatsApp number.");
-      return;
-    }
-
-    // Remove spaces, +, brackets and hyphens
-    number = number.replace(/[\s()+-]/g, "");
-
-    // Convert Kenyan numbers such as 07XXXXXXXX
-    // to international format 2547XXXXXXXX
-    if (number.startsWith("0")) {
-      number = "254" + number.substring(1);
-    }
-
-    // If user entered 7XXXXXXXX, add Kenya country code
-    if (
-      number.startsWith("7") &&
-      number.length === 9
-    ) {
-      number = "254" + number;
-    }
-
-    // Basic Kenyan WhatsApp number validation
-    if (
-      !/^2547\d{8}$/.test(number)
-    ) {
-      alert(
-        "Please enter a valid Kenyan WhatsApp number, e.g. 0712345678."
-      );
-      return;
-    }
-
-    const orderId =
-      order?.orderId ||
-      order?.ticketId ||
-      "Pending";
-
-    const message =
-      `Hello St Mary's Gala Committee.%0A%0A` +
-      `I have completed payment for a ticket.%0A%0A` +
-      `Order ID: ${encodeURIComponent(orderId)}%0A` +
-      `Event: ${encodeURIComponent(event?.title || "Event")}%0A` +
-      `Ticket: ${encodeURIComponent(ticket?.name || "Ticket")}%0A` +
-      `Quantity: ${encodeURIComponent(quantity || 1)}%0A` +
-      `Amount: KES ${encodeURIComponent(
-        Number(total || 0).toLocaleString()
-      )}%0A` +
-      `M-Pesa Receipt: ${encodeURIComponent(
-        receiptNumber || "Submitted"
-      )}%0A%0A` +
-      `My WhatsApp number is: ${encodeURIComponent(
-        number
-      )}%0A%0A` +
-      `I understand that my payment must be verified by the event administrator. ` +
-      `Once verification is complete, I will receive my ticket by email within 24 hours.`;
-
-    window.location.href =
-      `https://wa.me/${number}?text=${message}`;
-  };
 
   return (
 
@@ -135,10 +119,8 @@ export default function PaymentSuccess() {
         </h1>
 
         <p className="success-message">
-
           Thank you. Your payment information
           has been received.
-
         </p>
 
         {/* =========================
@@ -153,10 +135,7 @@ export default function PaymentSuccess() {
             </span>
 
             <strong>
-              {
-                order?.orderId ||
-                "Pending"
-              }
+              {order?.orderId || "Pending"}
             </strong>
           </div>
 
@@ -307,7 +286,7 @@ export default function PaymentSuccess() {
         </div>
 
         {/* =========================
-            WHATSAPP
+            WHATSAPP NOTICE
         ========================= */}
 
         <div
@@ -320,55 +299,23 @@ export default function PaymentSuccess() {
         >
 
           <strong>
-            Send your payment details on WhatsApp
+            Opening WhatsApp...
           </strong>
 
           <p
             style={{
               marginTop: "8px",
-              marginBottom: "12px",
               color: "#555",
               lineHeight: "1.5"
             }}
           >
 
-            Enter the WhatsApp number you would
-            like to use to contact the event
-            committee. It does not have to be the
-            same number you used to make the
-            M-Pesa payment.
+            Your payment details are being
+            prepared for the event administrator.
 
           </p>
 
-          <input
-            type="tel"
-            value={whatsappNumber}
-            onChange={(e) =>
-              setWhatsappNumber(e.target.value)
-            }
-            placeholder="e.g. 0712345678"
-            style={{
-              width: "100%",
-              padding: "12px",
-              border: "1px solid #ccc",
-              borderRadius: "6px",
-              fontSize: "16px",
-              boxSizing: "border-box"
-            }}
-          />
-
         </div>
-
-        {/* =========================
-            FINISH
-        ========================= */}
-
-        <button
-          onClick={handleFinish}
-          className="ticket-button"
-        >
-          Finish & Continue on WhatsApp
-        </button>
 
       </div>
 

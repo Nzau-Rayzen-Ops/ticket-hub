@@ -1,10 +1,11 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import {
   useLocation,
   useNavigate
 } from "react-router-dom";
 
 const TILL_NUMBER = "1625965";
+const RECIPIENT_NAME = "Ronald Nzau"; // ONLY THIS LINE ADDED
 
 export default function Payment() {
 
@@ -277,6 +278,11 @@ export default function Payment() {
             }}
           >
 
+            {/* ONLY THIS LINE ADDED */}
+            <p style={{ marginBottom: "5px", fontSize: "14px", color: "#666" }}>
+              Pay to: <strong>{RECIPIENT_NAME}</strong>
+            </p>
+
             <p
               style={{
                 marginBottom: "8px"
@@ -310,7 +316,7 @@ export default function Payment() {
               }}
             >
               {copied
-                ? "? Till Number Copied"
+                ? "✓ Till Number Copied"
                 : "Copy Till Number"}
             </button>
 
@@ -389,6 +395,14 @@ export default function Payment() {
                 Enter Till Number:{" "}
                 <strong>
                   {TILL_NUMBER}
+                </strong>
+              </li>
+
+              {/* ONLY THIS LINE ADDED */}
+              <li>
+                Pay to:{" "}
+                <strong>
+                  {RECIPIENT_NAME}
                 </strong>
               </li>
 

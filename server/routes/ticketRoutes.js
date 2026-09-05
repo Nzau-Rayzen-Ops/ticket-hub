@@ -18,6 +18,7 @@ const {
   getPendingPayments,
   confirmManualPayment,
   rejectManualPayment,
+  sendVerificationPin,
   getTicketQrToken
 
 } = require("../controllers/ticketController");
@@ -127,6 +128,12 @@ router.get(
    ADMIN QR TOKEN
 ========================= */
 
+
+router.post(
+  "/admin/send-verification-pin/:ticketId",
+  requireAdmin,
+  sendVerificationPin
+);
 router.get(
   "/admin/qr/:ticketId",
   requireAdmin,
@@ -174,4 +181,6 @@ router.get(
 
 
 module.exports = router;
+
+
 

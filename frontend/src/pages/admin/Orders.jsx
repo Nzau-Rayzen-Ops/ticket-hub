@@ -478,6 +478,89 @@ export default function Orders() {
   }
 
 
+  /* =========================
+     SEND VERIFICATION PIN
+  ========================= */
+
+  async function sendVerificationPin(ticketId) {
+
+    if (!ticketId) {
+      return;
+    }
+
+    try {
+
+      setProcessingTicket(ticketId);
+
+      setActionMessage({
+        type: "",
+        text: ""
+      });
+
+
+      const response =
+        await fetch(
+          `/api/tickets/admin/send-verification-pin/${encodeURIComponent(ticketId)}`,
+          {
+            method: "POST",
+
+            credentials: "include"
+
+          }
+        );
+
+
+      const data =
+        await response.json();
+
+
+      if (!response.ok) {
+
+        throw new Error(
+          data.message ||
+          "Failed to send verification PIN."
+        );
+
+      }
+
+
+      setActionMessage({
+
+        type: "success",
+
+        text:
+          data.message ||
+          "Verification PIN sent successfully."
+
+      });
+
+
+    } catch (err) {
+
+      console.error(
+        "Send verification PIN error:",
+        err
+      );
+
+      setActionMessage({
+
+        type: "error",
+
+        text:
+          err.message ||
+          "Failed to send verification PIN."
+
+      });
+
+    } finally {
+
+      setProcessingTicket("");
+
+    }
+
+  }
+
+
   return (
 
     <div className="admin-page">
@@ -1201,6 +1284,51 @@ export default function Orders() {
                             : "s"}
 
                         </span>
+
+                      </div>
+
+
+                      {/* VERIFICATION PIN */}
+
+                      <div>
+
+                        <button
+                          type="button"
+                          disabled={
+                            processingTicket ===
+                            order.latestTicket?.ticket_id
+                          }
+                          onClick={() =>
+                            sendVerificationPin(
+                              order.latestTicket?.ticket_id
+                            )
+                          }
+                          style={{
+                            padding: "10px 14px",
+                            border: "none",
+                            borderRadius: "6px",
+                            cursor:
+                              processingTicket ===
+                              order.latestTicket?.ticket_id
+                                ? "not-allowed"
+                                : "pointer",
+                            fontWeight: "700",
+                            opacity:
+                              processingTicket ===
+                              order.latestTicket?.ticket_id
+                                ? 0.6
+                                : 1
+                          }}
+                        >
+
+                          {
+                            processingTicket ===
+                            order.latestTicket?.ticket_id
+                              ? "Sending..."
+                              : "Send Verification PIN"
+                          }
+
+                        </button>
 
                       </div>
 

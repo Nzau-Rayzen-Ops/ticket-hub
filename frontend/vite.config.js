@@ -4,28 +4,33 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
-  root: process.cwd(),  // Explicitly set root to current directory
+
   resolve: {
     extensions: ['.js', '.jsx', '.json'],
     alias: {
-      '@': path.resolve(process.cwd(), './src'),
+      '@': path.resolve('./src'),
     }
   },
+
   server: {
+    host: '127.0.0.1',
+
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://127.0.0.1:5000',
         changeOrigin: true
       }
     }
   },
+
   build: {
     outDir: 'dist',
     sourcemap: false,
+
     rollupOptions: {
       input: {
-        main: path.resolve(process.cwd(), 'index.html'),
+        main: path.resolve('./index.html'),
       },
     },
-  }
+  },
 });
